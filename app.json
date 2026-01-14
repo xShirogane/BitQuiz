@@ -1,0 +1,44 @@
+{
+  "expo": {
+    "name": "BitQuiz",
+    "slug": "BitQuiz",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/BitQuiz.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/BitQuiz.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/BitQuiz.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-video"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "bedd6c38-863e-43ce-96ce-4415d6c77e5e"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/bedd6c38-863e-43ce-96ce-4415d6c77e5e"
+    }
+  }
+}
