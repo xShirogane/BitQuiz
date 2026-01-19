@@ -1,8 +1,12 @@
 import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
+import { StatusBar } from 'expo-status-bar';
+
+// --- IMPORTY KONTEKSTU ---
+import { AuthProvider } from './src/context/AuthContext';
 
 // --- IMPORTY EKRANÓW ---
 import ExamScreen, { Question } from './src/screens/ExamScreen';
@@ -11,9 +15,18 @@ import QualificationScreen from './src/screens/QualificationScreen';
 import ModeSelectionScreen from './src/screens/ModeSelectionScreen';
 import TrainingScreen from './src/screens/TrainingScreen';
 
+import ProfileScreen from './src/screens/ProfileScreen';
+import OneLifeScreen from './src/screens/OneLifeScreen';
+import MultiplayerSetupScreen from './src/screens/MultiplayerSetupScreen';
+import MultiplayerGameScreen from './src/screens/MultiplayerGameScreen';
+
+import StatisticsScreen from './src/screens/StatisticsScreen';
+
+import ExamReviewScreen from './src/screens/ExamReviewScreen';
+
 SplashScreen.preventAutoHideAsync();
 
-// --- TYPY NAWIGACJI ---
+// --- TYPY NAWIGACJI (ZAKTUALIZOWANE) ---
 export type RootStackParamList = {
   Qualifications: undefined; 
   ModeSelection: { examData: { id: string, title: string, apiUrl: string } };
@@ -24,15 +37,30 @@ export type RootStackParamList = {
     time: number,
     title: string 
   }; 
-  // ZMIANA TUTAJ: Dodajemy parametr 'time'
-  Exam: { apiUrl: string, limit: number, time: number }; 
+  Exam: { apiUrl: string, limit: number, time: number, examData: { id: string } }; 
   Training: { apiUrl: string }; 
-  Result: { score: number; total: number; questions: Question[]; userAnswers: (number | null)[]; };
+  Result: { 
+    score: number; 
+    total: number; 
+    questions: Question[]; 
+    userAnswers: (number | null)[]; 
+    mode?: 'exam' | 'training' | 'onelife';
+    examId?: string;
+    // Opcjonalnie: details?: ... (jeśli chciałbyś przekazywać to inaczej, ale na razie wystarczy to co wyżej)
+  };
+  Profile: undefined;
+  OneLife: { apiUrl: string, examId: string };
+  MultiplayerSetup: { examData: any };
+  MultiplayerGame: { roomCode: string, isHost: boolean, playerId: string };
+  
+  // --- TUTAJ ROBISZ ZMIANY: ---
+  Statistics: { examId?: string, title?: string }; // Zmieniono z undefined na obiekt
+  ExamReview: { questions: any[], userAnswers: any[], score: number, total: number }; // Dodano nową linię
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
-// --- EKRAN HOME ---
+// --- EKRAN HOME (Podsumowanie przed startem) ---
 function HomeScreen({ route, navigation }: any) {
   const { examData, limit, time, title } = route.params;
 
@@ -49,11 +77,11 @@ function HomeScreen({ route, navigation }: any) {
 
       <TouchableOpacity 
         style={styles.startButton} 
-        // ZMIANA TUTAJ: Przekazujemy 'time' dalej do egzaminu!
         onPress={() => navigation.navigate('Exam', { 
           apiUrl: examData.apiUrl, 
           limit: limit, 
-          time: time 
+          time: time,
+          examData: examData // <--- ZMIANA 4: PRZEKAZUJEMY DANE DALEJ
         })} 
       >
         <Text style={styles.startButtonText}>ROZPOCZNIJ TEST</Text>
@@ -69,7 +97,7 @@ function HomeScreen({ route, navigation }: any) {
   );
 }
 
-// --- GŁÓWNY KOMPONENT ---
+// --- GŁÓWNY KOMPONENT APP ---
 export default function App() {
   useEffect(() => {
     setTimeout(async () => {
@@ -78,16 +106,35 @@ export default function App() {
   }, []);
 
   return (
-    <NavigationContainer>
-      <Stack.Navigator initialRouteName="Qualifications">
-        <Stack.Screen name="Qualifications" component={QualificationScreen} options={{ headerShown: false }} />
-        <Stack.Screen name="ModeSelection" component={ModeSelectionScreen} options={{ title: 'Wybór trybu', headerBackTitle: 'Wróć' }} />
-        <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
-        <Stack.Screen name="Exam" component={ExamScreen} options={{ title: 'Egzamin', headerBackVisible: false }} />
-        <Stack.Screen name="Training" component={TrainingScreen} options={{ title: 'Trening' }} />
-        <Stack.Screen name="Result" component={ResultScreen} options={{ title: 'Wynik', headerShown: false }} />
-      </Stack.Navigator>
-    </NavigationContainer>
+    <AuthProvider>
+      <NavigationContainer>
+        <StatusBar style="auto" />
+        
+        <Stack.Navigator 
+          initialRouteName="Qualifications"
+          screenOptions={{
+             headerStyle: { backgroundColor: '#f5f5f5' },
+             headerTitleStyle: { fontWeight: 'bold' },
+             headerBackTitle: 'Wróć',
+             headerTintColor: '#007AFF'
+          }}
+        >
+          <Stack.Screen name="Qualifications" component={QualificationScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: 'Mój Profil' }} />
+          <Stack.Screen name="ModeSelection" component={ModeSelectionScreen} options={{ title: 'Wybór trybu' }} />
+          <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="Exam" component={ExamScreen} options={{ title: 'Egzamin', headerBackVisible: false }} />
+          <Stack.Screen name="Training" component={TrainingScreen} options={{ title: 'Trening' }} />
+          <Stack.Screen name="Result" component={ResultScreen} options={{ title: 'Wynik', headerShown: false }} />
+          <Stack.Screen name="OneLife" component={OneLifeScreen} options={{ title: 'Nagła Śmierć 💀',headerStyle: { backgroundColor: '#1c1c1e' }, headerTintColor: '#FF3B30', headerTitleStyle: { color: '#fff' }}} />
+          <Stack.Screen name="MultiplayerSetup" component={MultiplayerSetupScreen} options={{ title: 'Lobby 1vs1' }} />
+          <Stack.Screen name="MultiplayerGame" component={MultiplayerGameScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="Statistics" component={StatisticsScreen} options={{ title: 'Twoje Statystyki 📊' }} />
+          <Stack.Screen name="ExamReview" component={ExamReviewScreen} options={{ title: 'Szczegóły testu', presentation: 'modal' }} />
+        </Stack.Navigator>
+
+      </NavigationContainer>
+    </AuthProvider>
   );
 }
 
