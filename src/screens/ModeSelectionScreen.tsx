@@ -10,8 +10,6 @@ export default function ModeSelectionScreen({ route, navigation }: any) {
       <Text style={styles.title}>Wybierz tryb nauki</Text>
       <Text style={styles.subtitle}>{examData.id.toUpperCase()}</Text>
 
-      {/* Usunięto QualificationStatsCard - statystyki są teraz na ekranie głównym */}
-
       {/* 1. PEŁNY EGZAMIN */}
       <TouchableOpacity 
         style={[styles.card, styles.cardBlue]}
@@ -75,6 +73,15 @@ export default function ModeSelectionScreen({ route, navigation }: any) {
         <Text style={styles.cardTitle}>⚔️ Pojedynek 1vs1</Text>
         <Text style={styles.cardDesc}>Zagraj ze znajomym • Czas rzeczywisty</Text>
       </TouchableOpacity>
+
+      <TouchableOpacity 
+  style={{ marginTop: 20, backgroundColor: '#FF9500', padding: 15, borderRadius: 10 }}
+  onPress={() => navigation.navigate('MistakeReview')}
+>
+  <Text style={{ textAlign: 'center', color: 'white', fontWeight: 'bold' }}>
+    🧠 TRENER BŁĘDÓW (BETA)
+  </Text>
+</TouchableOpacity>
 
     </ScrollView>
   );

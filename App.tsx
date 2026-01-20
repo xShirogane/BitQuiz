@@ -24,6 +24,8 @@ import StatisticsScreen from './src/screens/StatisticsScreen';
 
 import ExamReviewScreen from './src/screens/ExamReviewScreen';
 
+import MistakeReviewScreen from './src/screens/MistakeReviewScreen';
+
 SplashScreen.preventAutoHideAsync();
 
 // --- TYPY NAWIGACJI (ZAKTUALIZOWANE) ---
@@ -56,6 +58,8 @@ export type RootStackParamList = {
   // --- TUTAJ ROBISZ ZMIANY: ---
   Statistics: { examId?: string, title?: string }; // Zmieniono z undefined na obiekt
   ExamReview: { questions: any[], userAnswers: any[], score: number, total: number }; // Dodano nową linię
+
+  MistakeReview: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -131,6 +135,7 @@ export default function App() {
           <Stack.Screen name="MultiplayerGame" component={MultiplayerGameScreen} options={{ headerShown: false }} />
           <Stack.Screen name="Statistics" component={StatisticsScreen} options={{ title: 'Twoje Statystyki 📊' }} />
           <Stack.Screen name="ExamReview" component={ExamReviewScreen} options={{ title: 'Szczegóły testu', presentation: 'modal' }} />
+          <Stack.Screen name="MistakeReview" component={MistakeReviewScreen} options={{ title: 'Trener Błędów' }} />
         </Stack.Navigator>
 
       </NavigationContainer>
