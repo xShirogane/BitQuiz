@@ -1,8 +1,10 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { useAuth } from '../context/AuthContext'; // ✅ Importujemy kontekst autoryzacji
 
 export default function ModeSelectionScreen({ route, navigation }: any) {
   const { examData } = route.params;
+  const { userProfile } = useAuth(); // ✅ Pobieramy profil użytkownika
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -47,11 +49,23 @@ export default function ModeSelectionScreen({ route, navigation }: any) {
           apiUrl: examData.apiUrl 
         })}
       >
-        <Text style={styles.cardTitle}>🧠 Tryb Nauki</Text>
+        <Text style={styles.cardTitle}>📚 Tryb Nauki</Text>
         <Text style={styles.cardDesc}>Po jednym pytaniu • Natychmiastowe odpowiedzi</Text>
       </TouchableOpacity>
 
-      {/* 4. TRYB JEDNEGO ŻYCIA */}
+      {/* ⭐ 4. TRENER BŁĘDÓW (TYLKO DLA PRO) ⭐ */}
+      {/* Ten blok wyświetli się TYLKO jeśli userProfile.isPro == true */}
+      {userProfile?.isPro && (
+        <TouchableOpacity 
+          style={[styles.card, styles.cardGold]}
+          onPress={() => navigation.navigate('MistakeReview')}
+        >
+          <Text style={styles.cardTitle}>💎 Trener Błędów</Text>
+          <Text style={styles.cardDesc}>Inteligentna powtórka • Tylko twoje pomyłki</Text>
+        </TouchableOpacity>
+      )}
+
+      {/* 5. TRYB JEDNEGO ŻYCIA */}
       <TouchableOpacity 
         style={[styles.card, styles.cardRed]}
         onPress={() => navigation.navigate('OneLife', { 
@@ -63,7 +77,7 @@ export default function ModeSelectionScreen({ route, navigation }: any) {
         <Text style={styles.cardDesc}>0 błędów • Liczy się seria • Hardcore</Text>
       </TouchableOpacity>
 
-      {/* 5. MULTIPLAYER 1vs1 */}
+      {/* 6. MULTIPLAYER 1vs1 */}
       <TouchableOpacity 
         style={[styles.card, styles.cardPurple]}
         onPress={() => navigation.navigate('MultiplayerSetup', { 
@@ -74,15 +88,6 @@ export default function ModeSelectionScreen({ route, navigation }: any) {
         <Text style={styles.cardDesc}>Zagraj ze znajomym • Czas rzeczywisty</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity 
-  style={{ marginTop: 20, backgroundColor: '#FF9500', padding: 15, borderRadius: 10 }}
-  onPress={() => navigation.navigate('MistakeReview')}
->
-  <Text style={{ textAlign: 'center', color: 'white', fontWeight: 'bold' }}>
-    🧠 TRENER BŁĘDÓW (BETA)
-  </Text>
-</TouchableOpacity>
-
     </ScrollView>
   );
 }
@@ -91,12 +96,19 @@ const styles = StyleSheet.create({
   container: { flexGrow: 1, padding: 20, backgroundColor: '#F5F7FA' },
   title: { fontSize: 28, fontWeight: 'bold', textAlign: 'center', marginBottom: 5, color: '#333', marginTop: 10 },
   subtitle: { fontSize: 18, textAlign: 'center', marginBottom: 20, color: '#666', fontWeight: '600' },
-  card: { padding: 25, borderRadius: 16, marginBottom: 20, elevation: 4, shadowOpacity: 0.1, shadowRadius: 4 },
+  
+  // Bazowy styl karty
+  card: { padding: 25, borderRadius: 16, marginBottom: 20, elevation: 3, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } },
+  cardTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 5, color: '#333' },
+  cardDesc: { fontSize: 14, color: '#666' },
+
+  // Kolory pasków bocznych
   cardBlue: { backgroundColor: '#fff', borderLeftWidth: 6, borderLeftColor: '#007AFF' },
   cardOrange: { backgroundColor: '#fff', borderLeftWidth: 6, borderLeftColor: '#FF9500' },
   cardGreen: { backgroundColor: '#fff', borderLeftWidth: 6, borderLeftColor: '#34C759' },
-  cardTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 5, color: '#333' },
-  cardDesc: { fontSize: 14, color: '#666' },
   cardRed: { backgroundColor: '#fff', borderLeftWidth: 6, borderLeftColor: '#FF3B30' },
   cardPurple: { backgroundColor: '#fff', borderLeftWidth: 6, borderLeftColor: '#9C27B0' },
+  
+  // ✅ Nowy styl dla karty PRO (Złoty)
+  cardGold: { backgroundColor: '#fff', borderLeftWidth: 6, borderLeftColor: '#FFD700' },
 });
