@@ -24,8 +24,7 @@ export const QUALIFICATIONS_DATA = [
     title: 'INF.03', 
     fullName: 'Tworzenie i administrowanie stronami', 
     schoolId: 'tp', 
-    // Link bezpośredni do Twojego Gista:
-    apiUrl: 'https://gist.githubusercontent.com/xShirogane/4891f45cdabb89fd31f56d38e2a42d3f/raw/questions.json' 
+    apiUrl: `${GITHUB_BASE}/inf03.json` 
   },
   { 
     id: 'inf04', 

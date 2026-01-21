@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, ActivityIndicator, Alert } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage'; // Do zapisywania pytań
-import { useAuth } from '../context/AuthContext'; // Do sprawdzania czy user jest PRO
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, ActivityIndicator } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuth } from '../context/AuthContext';
 import { cacheImages } from '../utils/offlineManager';
 import * as FileSystem from 'expo-file-system/legacy';
+// 1. NOWOŚĆ: Importujemy przeglądarkę zdjęć
+import ImageView from "react-native-image-viewing";
 
+// Pamiętaj o ukośniku na końcu i 'raw' w adresie!
 const GITHUB_IMAGE_BASE_URL = 'https://raw.githubusercontent.com/xShirogane/BitQuiz-Assets/main/';
 
 export interface Question {
@@ -12,19 +15,21 @@ export interface Question {
   text: string;
   answers: string[];
   correctAnswerIndex: number | null;
-  // --- ZMIANA PONIŻEJ: dodajemy localFileName? ---
   media?: { type: 'image' | 'video'; uri: string; localFileName?: string } | null;
 }
 
 export default function ExamScreen({ route, navigation }: any) {
   const { apiUrl, limit, time } = route.params; 
-  const { userProfile } = useAuth(); // Pobieramy profil, żeby sprawdzić status PRO
+  const { userProfile } = useAuth();
   
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [userAnswers, setUserAnswers] = useState<(number | null)[]>([]);
   const [error, setError] = useState<string | null>(null);
+  
+  // 2. NOWOŚĆ: Stan widoczności galerii (zoomowania)
+  const [isGalleryVisible, setIsGalleryVisible] = useState(false);
 
   // Stan dla licznika czasu
   const [timeLeft, setTimeLeft] = useState((time || 60) * 60); 
@@ -33,7 +38,6 @@ export default function ExamScreen({ route, navigation }: any) {
     fetchQuestions();
   }, []);
 
-  // --- LOGIKA TIMERA ---
   useEffect(() => {
     if (loading || error) return; 
 
@@ -50,7 +54,6 @@ export default function ExamScreen({ route, navigation }: any) {
     return () => clearInterval(timerId);
   }, [loading, error]);
 
-  // Automatyczne zakończenie po czasie
   useEffect(() => {
     if (timeLeft === 0 && !loading && !error) {
       finishExam();
@@ -63,22 +66,16 @@ export default function ExamScreen({ route, navigation }: any) {
     return `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
-  // --- GŁÓWNA LOGIKA POBIERANIA (SIECIOWA + OFFLINE) ---
  const fetchQuestions = async () => {
     const cacheKey = `quiz_cache_${apiUrl}`;
 
     try {
-      // 1. Pobieramy JSON z internetu
       const response = await fetch(apiUrl);
       if (!response.ok) throw new Error('Błąd sieci');
       
       const rawQuestions: Question[] = await response.json();
-      
-      // 2. NOWOŚĆ: Pobieramy obrazki do pamięci telefonu
-      // To może chwilę potrwać, ale dla usera PRO to wartość dodana
       const questionsWithImages = await cacheImages(rawQuestions);
       
-      // 3. Zapisujemy w cache wersję Z OBRAZKAMI (lokalnymi ścieżkami)
       try {
         await AsyncStorage.setItem(cacheKey, JSON.stringify(questionsWithImages));
       } catch (cacheErr) {
@@ -114,7 +111,6 @@ export default function ExamScreen({ route, navigation }: any) {
 
   const processQuestions = (allQuestions: Question[]) => {
     const questionsToDraw = limit || 40;
-    // Mieszamy i przycinamy
     const shuffled = allQuestions.sort(() => 0.5 - Math.random()).slice(0, questionsToDraw);
     
     if (shuffled.length === 0) {
@@ -148,7 +144,7 @@ export default function ExamScreen({ route, navigation }: any) {
     }
   };
 
-const finishExam = () => {
+  const finishExam = () => {
     let score = 0;
     questions.forEach((q, index) => {
       if (q.correctAnswerIndex !== null && userAnswers[index] === q.correctAnswerIndex) {
@@ -156,7 +152,6 @@ const finishExam = () => {
       }
     });
 
-    // Pobieramy examData z parametrów, żeby wyciągnąć ID
     const { examData } = route.params; 
 
     navigation.navigate('Result', {
@@ -165,13 +160,12 @@ const finishExam = () => {
       questions: questions,
       userAnswers: userAnswers,
       mode: 'exam',
-      examId: examData.id // <--- PRZEKAZUJEMY ID DALEJ
+      examId: examData.id 
     });
   };
 
   if (loading) return <View style={styles.center}><ActivityIndicator size="large" color="#007AFF" /></View>;
   
-  // Wyświetlanie błędu z przyciskiem powrotu
   if (error) return (
     <View style={styles.center}>
       <Text style={styles.errorText}>{error}</Text>
@@ -183,10 +177,19 @@ const finishExam = () => {
 
   const currentQuestion = questions[currentIndex];
   
+  // 3. NOWOŚĆ: Wyciągamy logikę adresu obrazka do zmiennej, żeby użyć jej w 2 miejscach
+  let imageSource = null;
+  if (currentQuestion.media?.type === 'image') {
+    imageSource = {
+        uri: currentQuestion.media.localFileName 
+        ? `${FileSystem.documentDirectory}${currentQuestion.media.localFileName}`
+        : GITHUB_IMAGE_BASE_URL + currentQuestion.media.uri 
+    };
+  }
+  
   return (
     <ScrollView contentContainerStyle={styles.container}>
       
-      {/* GÓRNY PASEK */}
       <View style={styles.topBar}>
         <View style={styles.progressInfo}>
           <Text style={styles.progressText}>Pytanie {currentIndex + 1} / {questions.length}</Text>
@@ -205,18 +208,27 @@ const finishExam = () => {
 
       <Text style={styles.questionText}>{currentQuestion.text}</Text>
 
-      {/* Obrazki (uwaga: w trybie offline mogą nie działać bez dodatkowego cache'owania plików) */}
-      {currentQuestion.media && currentQuestion.media.type === 'image' && (
-        <Image
-          source={{ 
-            uri: currentQuestion.media.localFileName 
-              ? `${FileSystem.documentDirectory}${currentQuestion.media.localFileName}` // Sklejamy ścieżkę na świeżo
-              : GITHUB_IMAGE_BASE_URL + currentQuestion.media.uri 
-          }}
-          style={styles.image}
-          resizeMode="contain"
-        />
+      {/* 4. NOWOŚĆ: Wyświetlanie obrazka z obsługą zoomu */}
+      {imageSource && (
+        <>
+            <TouchableOpacity onPress={() => setIsGalleryVisible(true)} activeOpacity={0.9}>
+                <Image
+                    source={imageSource}
+                    style={styles.image}
+                    resizeMode="contain"
+                />
+                <Text style={styles.zoomHint}>🔍 Kliknij, aby powiększyć</Text>
+            </TouchableOpacity>
+
+            <ImageView
+                images={[imageSource]}
+                imageIndex={0}
+                visible={isGalleryVisible}
+                onRequestClose={() => setIsGalleryVisible(false)}
+            />
+        </>
       )}
+
       <View style={styles.answersContainer}>
         {currentQuestion.answers.map((ans, idx) => {
           const isSelected = userAnswers[currentIndex] === idx;
@@ -273,7 +285,9 @@ const styles = StyleSheet.create({
 
   questionText: { fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 20, lineHeight: 26 },
   
-  image: { width: '100%', height: 250, marginBottom: 20, backgroundColor: '#f9f9f9', borderRadius: 8, borderWidth: 1, borderColor: '#eee' },
+  image: { width: '100%', height: 250, backgroundColor: '#f9f9f9', borderRadius: 8, borderWidth: 1, borderColor: '#eee' },
+  // 5. NOWOŚĆ: Styl dla napisu podpowiedzi
+  zoomHint: { textAlign: 'center', color: '#007AFF', fontSize: 12, marginBottom: 20, marginTop: 5 },
 
   answersContainer: { gap: 12, marginBottom: 30 },
   answerButton: { flexDirection: 'row', padding: 16, borderRadius: 12, backgroundColor: '#fff', borderWidth: 1, borderColor: '#ddd', alignItems: 'center' },

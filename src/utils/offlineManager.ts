@@ -9,15 +9,27 @@ export const cacheImages = async (questions: any[]) => {
   // console.log('🔄 [Cache] Przetwarzam obrazki...');
   
   const updatedQuestions = await Promise.all(questions.map(async (q) => {
+    // Jeśli to nie obrazek, pomijamy
     if (!q.media || q.media.type !== 'image') return q;
 
     try {
+      // Zamieniamy ukośniki na podkreślniki, żeby stworzyć bezpieczną nazwę pliku
       const fileName = q.media.uri.replace(/\//g, '_');
       const localUri = `${FileSystem.documentDirectory}${fileName}`;
+      
+      // Sprawdzamy czy plik istnieje
       const fileInfo = await FileSystem.getInfoAsync(localUri);
       
-      if (!fileInfo.exists) {
-        // console.log(`⬇️ Pobieram obrazek: ${fileName}`);
+      // LOGIKA NAPRAWCZA:
+      // Pobieramy tylko jeśli plik NIE istnieje LUB jeśli istnieje, ale jest pusty/za mały (np. < 100 bajtów)
+      if (!fileInfo.exists || (fileInfo.exists && fileInfo.size < 100)) {
+        // console.log(`⬇️ Pobieram/Naprawiam obrazek: ${fileName}`);
+        
+        // Jeśli plik istnieje ale jest zły, najpierw go usuńmy
+        if (fileInfo.exists) {
+            await FileSystem.deleteAsync(localUri, { idempotent: true });
+        }
+
         await FileSystem.downloadAsync(
           GITHUB_IMAGE_BASE_URL + q.media.uri,
           localUri
@@ -32,8 +44,9 @@ export const cacheImages = async (questions: any[]) => {
         }
       };
     } catch (e) {
-      console.warn('⚠️ Błąd obrazka:', q.media.uri);
-      return q;
+      console.warn('⚠️ Błąd pobierania obrazka:', q.media.uri);
+      // W razie błędu zwracamy pytanie bez localFileName - aplikacja spróbuje wczytać z sieci
+      return q; 
     }
   }));
 
