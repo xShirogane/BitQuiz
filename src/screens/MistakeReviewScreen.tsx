@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { 
   View, Text, StyleSheet, TouchableOpacity, ScrollView, 
-  ActivityIndicator, Alert, Image, Dimensions, ViewStyle, TextStyle 
+  ActivityIndicator, Alert, Image, Dimensions 
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -11,11 +11,32 @@ import { db } from '../config/firebase';
 import { collection, getDocs, doc, updateDoc, deleteDoc, increment } from 'firebase/firestore';
 import { Ionicons } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system'; 
-// 1. NOWOŚĆ: Import wideo
-import { Video, ResizeMode } from 'expo-av';
+// 1. ZMIANA: Nowa biblioteka wideo
+import { useVideoPlayer, VideoView } from 'expo-video';
 
 // Baza do zdjęć
 const GITHUB_BASE = 'https://raw.githubusercontent.com/xShirogane/BitQuiz-Assets/main/';
+
+// 2. KOMPONENT POMOCNICZY DO WIDEO
+const QuestionVideo = ({ uri }: { uri: string }) => {
+  const player = useVideoPlayer(uri, player => {
+    player.loop = true;
+    player.play();
+  });
+
+  return (
+    <View style={styles.videoContainer}>
+      <VideoView 
+        style={styles.videoView} 
+        player={player} 
+        contentFit="contain"
+        // USUNIĘTO: allowsFullscreen (bo generowało błąd)
+        // USUNIĘTO: allowsPictureInPicture (opcjonalne, też można usunąć dla czystości)
+        nativeControls={true} // To zapewnia systemowe przyciski (play, pauza, fullscreen)
+      />
+    </View>
+  );
+};
 
 type Props = NativeStackScreenProps<RootStackParamList, 'MistakeReview'>;
 
@@ -86,7 +107,6 @@ export default function MistakeReviewScreen({ navigation }: Props) {
       const uri = currentQ.media.uri;
       const localFileName = currentQ.media.localFileName || uri.replace(/\//g, '_');
       
-      // Rzutowanie (as any), żeby TypeScript nie krzyczał o brak 'documentDirectory'
       const docDir = (FileSystem as any).documentDirectory; 
       
       if (docDir) {
@@ -207,13 +227,9 @@ export default function MistakeReviewScreen({ navigation }: Props) {
 
           {/* 2. WIDEO (NOWOŚĆ) */}
           {currentQ.media?.type === 'video' && (
-            <Video
-              style={[styles.image, { backgroundColor: '#000' }]} // Używamy tego samego stylu + czarne tło
-              source={{ uri: GITHUB_BASE + currentQ.media.uri }}
-              useNativeControls
-              resizeMode={ResizeMode.CONTAIN}
-              isLooping
-            />
+            <View style={{ marginTop: 15 }}>
+              <QuestionVideo uri={GITHUB_BASE + currentQ.media.uri} />
+            </View>
           )}
         </View>
 
@@ -301,8 +317,20 @@ const styles = StyleSheet.create({
   questionCounter: { fontSize: 12, fontWeight: 'bold', color: '#9E9E9E', marginBottom: 8, letterSpacing: 1 },
   questionText: { fontSize: 18, fontWeight: '600', color: '#212121', lineHeight: 26 },
   
-  // Ten styl służy teraz i dla Image i dla Video
   image: { width: '100%', height: 200, marginTop: 15, borderRadius: 8, backgroundColor: '#FAFAFA' },
+
+  // Nowe style dla wideo
+  videoContainer: {
+    width: '100%',
+    height: 200,
+    backgroundColor: '#ffffff',
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  videoView: {
+    width: '100%',
+    height: '100%'
+  },
 
   answersContainer: { gap: 12 },
   answerWrapper: {

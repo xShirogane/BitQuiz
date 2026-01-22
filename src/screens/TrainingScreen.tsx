@@ -1,14 +1,34 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   View, Text, StyleSheet, TouchableOpacity, ScrollView, 
   ActivityIndicator, Image, TextInput, Alert, Keyboard 
 } from 'react-native';
-// 1. IMPORTUJEMY MODUŁ WIDEO
-import { Video, ResizeMode } from 'expo-av';
+// 1. ZMIANA: Nowa biblioteka wideo
+import { useVideoPlayer, VideoView } from 'expo-video';
 
 // ADRES BAZOWY (dla zdjęć i wideo)
 const GITHUB_BASE_URL = 'https://raw.githubusercontent.com/xShirogane/BitQuiz-Assets/main/';
 
+// 2. NOWY KOMPONENT POMOCNICZY DO WIDEO
+const QuestionVideo = ({ uri }: { uri: string }) => {
+  const player = useVideoPlayer(uri, player => {
+    player.loop = true;
+    player.play();
+  });
+
+  return (
+    <View style={styles.videoContainer}>
+      <VideoView 
+        style={styles.videoView} 
+        player={player} 
+        contentFit="contain"
+        // USUNIĘTO: allowsFullscreen (bo generowało błąd)
+        // USUNIĘTO: allowsPictureInPicture (opcjonalne, też można usunąć dla czystości)
+        nativeControls={true} // To zapewnia systemowe przyciski (play, pauza, fullscreen)
+      />
+    </View>
+  );
+};
 export default function TrainingScreen({ route, navigation }: any) {
   const { apiUrl } = route.params;
 
@@ -16,11 +36,11 @@ export default function TrainingScreen({ route, navigation }: any) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
 
+  // Stany dla bieżącego pytania
   const [selectedAnswerIndex, setSelectedAnswerIndex] = useState<number | null>(null);
+  
+  // Stan dla wyszukiwarki (skok do pytania)
   const [jumpText, setJumpText] = useState('');
-
-  // Ref do wideo, aby móc np. zatrzymać je przy zmianie pytania (opcjonalne)
-  const videoRef = useRef<Video>(null);
 
   useEffect(() => {
     fetchQuestions();
@@ -41,38 +61,44 @@ export default function TrainingScreen({ route, navigation }: any) {
   };
 
   const handleAnswer = (index: number) => {
+    // Pozwalamy zmienić odpowiedź tylko, jeśli jeszcze nie wybrano
     if (selectedAnswerIndex !== null) return; 
+
     setSelectedAnswerIndex(index);
   };
 
   const goToNext = () => {
     if (currentIndex < questions.length - 1) {
       setCurrentIndex(prev => prev + 1);
-      setSelectedAnswerIndex(null); 
+      setSelectedAnswerIndex(null); // Reset wyboru
     }
   };
 
   const goToPrev = () => {
     if (currentIndex > 0) {
       setCurrentIndex(prev => prev - 1);
-      setSelectedAnswerIndex(null); 
+      setSelectedAnswerIndex(null); // Reset wyboru
     }
   };
 
   const handleJumpToQuestion = () => {
     const questionNumber = parseInt(jumpText, 10);
+
     if (isNaN(questionNumber)) {
       Alert.alert("Błąd", "Wpisz poprawny numer.");
       return;
     }
+
     if (questionNumber < 1 || questionNumber > questions.length) {
       Alert.alert("Błąd", `Wpisz numer od 1 do ${questions.length}.`);
       return;
     }
+
+    // Odejmujemy 1, bo tablica jest indeksowana od 0
     setCurrentIndex(questionNumber - 1);
     setSelectedAnswerIndex(null);
-    setJumpText(''); 
-    Keyboard.dismiss();
+    setJumpText(''); // Czyścimy pole
+    Keyboard.dismiss(); // Chowa klawiaturę
   };
 
   if (loading) {
@@ -90,7 +116,7 @@ export default function TrainingScreen({ route, navigation }: any) {
   return (
     <View style={styles.container}>
       
-      {/* GÓRNY PASEK */}
+      {/* GÓRNY PASEK: SKOK DO PYTANIA */}
       <View style={styles.topBar}>
         <Text style={styles.counterText}>
           Pytanie {currentIndex + 1} / {questions.length}
@@ -113,6 +139,7 @@ export default function TrainingScreen({ route, navigation }: any) {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
+        {/* TREŚĆ PYTANIA */}
         <Text style={styles.questionText}>{currentQ.text}</Text>
 
         {/* --- OBSŁUGA MEDIÓW (ZDJĘCIA I WIDEO) --- */}
@@ -127,16 +154,9 @@ export default function TrainingScreen({ route, navigation }: any) {
               />
             )}
 
-            {/* PRZYPADEK 2: WIDEO (NOWOŚĆ!) */}
+            {/* PRZYPADEK 2: WIDEO (Używamy nowego komponentu) */}
             {currentQ.media.type === 'video' && (
-              <Video
-                ref={videoRef}
-                style={styles.video}
-                source={{ uri: GITHUB_BASE_URL + currentQ.media.uri }}
-                useNativeControls
-                resizeMode={ResizeMode.CONTAIN}
-                isLooping
-              />
+              <QuestionVideo uri={GITHUB_BASE_URL + currentQ.media.uri} />
             )}
           </View>
         )}
@@ -144,16 +164,20 @@ export default function TrainingScreen({ route, navigation }: any) {
         {/* ODPOWIEDZI */}
         <View style={styles.answersContainer}>
           {currentQ.answers.map((ans: string, idx: number) => {
+            
+            // LOGIKA KOLORÓW
             let backgroundColor = '#fff';
             let borderColor = '#E0E0E0';
             let textColor = '#333';
 
             if (isAnswered) {
               if (idx === currentQ.correctAnswerIndex) {
+                // Poprawna odpowiedź - ZAWSZE na zielono
                 backgroundColor = '#D4EDDA'; 
                 borderColor = '#28A745';
                 textColor = '#155724';
               } else if (idx === selectedAnswerIndex) {
+                // Błędna odpowiedź użytkownika - na czerwono
                 backgroundColor = '#F8D7DA';
                 borderColor = '#DC3545';
                 textColor = '#721C24';
@@ -179,7 +203,7 @@ export default function TrainingScreen({ route, navigation }: any) {
         </View>
       </ScrollView>
 
-      {/* DOLNY PASEK */}
+      {/* DOLNY PASEK NAWIGACJI */}
       <View style={styles.bottomNav}>
         <TouchableOpacity 
           style={[styles.navButton, currentIndex === 0 && styles.disabledButton]} 
@@ -205,6 +229,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F5F7FA' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   
+  // Górny pasek
   topBar: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 20, paddingTop: 15, paddingBottom: 15,
@@ -219,14 +244,28 @@ const styles = StyleSheet.create({
   jumpButton: { backgroundColor: '#007AFF', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
   jumpButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 12 },
 
+  // Treść
   scrollContent: { padding: 20, paddingBottom: 100 },
   questionText: { fontSize: 20, fontWeight: 'bold', color: '#333', marginBottom: 20, lineHeight: 28 },
   
   // --- Style dla mediów ---
   mediaContainer: { marginBottom: 20, width: '100%', alignItems: 'center' },
   image: { width: '100%', height: 200, backgroundColor: '#fff', borderRadius: 8 },
-  video: { width: '100%', height: 200, backgroundColor: '#000', borderRadius: 8 },
+  
+  // Style dla nowego wideo
+  videoContainer: {
+    width: '100%',
+    height: 200,
+    backgroundColor: '#ffffff',
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  videoView: {
+    width: '100%',
+    height: '100%'
+  },
 
+  // Odpowiedzi
   answersContainer: { gap: 12 },
   answerButton: { 
     flexDirection: 'row', padding: 16, borderRadius: 12, 
@@ -235,6 +274,7 @@ const styles = StyleSheet.create({
   answerLetter: { fontSize: 18, fontWeight: 'bold', marginRight: 15 },
   answerText: { fontSize: 16, flex: 1, lineHeight: 22 },
 
+  // Dolna nawigacja
   bottomNav: {
     flexDirection: 'row', padding: 15, backgroundColor: '#fff', 
     borderTopWidth: 1, borderTopColor: '#eee',

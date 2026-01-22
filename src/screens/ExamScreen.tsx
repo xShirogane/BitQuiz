@@ -4,13 +4,34 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../context/AuthContext';
 import { cacheImages } from '../utils/offlineManager';
 import * as FileSystem from 'expo-file-system/legacy';
-// 1. Import przeglądarki zdjęć
+// Import przeglądarki zdjęć
 import ImageView from "react-native-image-viewing";
-// 2. NOWOŚĆ: Import obsługi wideo
-import { Video, ResizeMode } from 'expo-av';
+// 1. ZMIANA: Nowa biblioteka wideo
+import { useVideoPlayer, VideoView } from 'expo-video';
 
 // Pamiętaj o ukośniku na końcu i 'raw' w adresie!
 const GITHUB_IMAGE_BASE_URL = 'https://raw.githubusercontent.com/xShirogane/BitQuiz-Assets/main/';
+
+// 2. KOMPONENT POMOCNICZY DO WIDEO
+const QuestionVideo = ({ uri }: { uri: string }) => {
+  const player = useVideoPlayer(uri, player => {
+    player.loop = true;
+    player.play();
+  });
+
+  return (
+    <View style={styles.videoContainer}>
+      <VideoView 
+        style={styles.videoView} 
+        player={player} 
+        contentFit="contain"
+        // USUNIĘTO: allowsFullscreen (bo generowało błąd)
+        // USUNIĘTO: allowsPictureInPicture (opcjonalne, też można usunąć dla czystości)
+        nativeControls={true} // To zapewnia systemowe przyciski (play, pauza, fullscreen)
+      />
+    </View>
+  );
+};
 
 export interface Question {
   id: number;
@@ -234,16 +255,10 @@ export default function ExamScreen({ route, navigation }: any) {
         </>
       )}
 
-      {/* 2. WIDEO (nowość) */}
+      {/* 2. WIDEO (nowe) */}
       {currentQuestion.media?.type === 'video' && (
         <View style={{ marginBottom: 20 }}>
-          <Video
-            style={styles.mediaFrame}
-            source={{ uri: GITHUB_IMAGE_BASE_URL + currentQuestion.media.uri }}
-            useNativeControls
-            resizeMode={ResizeMode.CONTAIN}
-            isLooping
-          />
+          <QuestionVideo uri={GITHUB_IMAGE_BASE_URL + currentQuestion.media.uri} />
         </View>
       )}
 
@@ -303,8 +318,22 @@ const styles = StyleSheet.create({
 
   questionText: { fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 20, lineHeight: 26 },
   
-  // Zmieniłem nazwę z 'image' na 'mediaFrame', żeby pasowała też do wideo
   mediaFrame: { width: '100%', height: 250, backgroundColor: '#f9f9f9', borderRadius: 8, borderWidth: 1, borderColor: '#eee' },
+  
+  // Style dla nowego wideo
+  videoContainer: {
+    width: '100%',
+    height: 250,
+    backgroundColor: '#ffffff',
+    borderRadius: 8,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#eee'
+  },
+  videoView: {
+    width: '100%',
+    height: '100%'
+  },
   
   zoomHint: { textAlign: 'center', color: '#007AFF', fontSize: 12, marginBottom: 20, marginTop: 5 },
 

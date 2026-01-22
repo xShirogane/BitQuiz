@@ -4,11 +4,31 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../context/AuthContext';
 import { cacheImages } from '../utils/offlineManager';
 import * as FileSystem from 'expo-file-system/legacy';
-// 1. IMPORTUJEMY MODUŁ WIDEO
-import { Video, ResizeMode } from 'expo-av';
+// 1. ZMIANA: Nowa biblioteka wideo
+import { useVideoPlayer, VideoView } from 'expo-video';
 
 const GITHUB_IMAGE_BASE_URL = 'https://raw.githubusercontent.com/xShirogane/BitQuiz-Assets/main/';
 
+// 2. NOWY KOMPONENT POMOCNICZY
+const QuestionVideo = ({ uri }: { uri: string }) => {
+  const player = useVideoPlayer(uri, player => {
+    player.loop = true;
+    player.play();
+  });
+
+  return (
+    <View style={styles.videoContainer}>
+      <VideoView 
+        style={styles.videoView} 
+        player={player} 
+        contentFit="contain"
+        // USUNIĘTO: allowsFullscreen (bo generowało błąd)
+        // USUNIĘTO: allowsPictureInPicture (opcjonalne, też można usunąć dla czystości)
+        nativeControls={true} // To zapewnia systemowe przyciski (play, pauza, fullscreen)
+      />
+    </View>
+  );
+};
 export interface Question {
   id: number;
   text: string;
@@ -123,11 +143,10 @@ export default function OneLifeScreen({ route, navigation }: any) {
       <View style={styles.card}>
         <Text style={styles.questionText}>{currentQuestion.text}</Text>
         
-        {/* --- 2. OBSŁUGA MEDIÓW (Obrazek i Wideo) --- */}
+        {/* --- OBSŁUGA MEDIÓW --- */}
         {currentQuestion.media && (
           <View style={{ marginBottom: 20, width: '100%', alignItems: 'center' }}>
             
-            {/* Przypadek 1: Obrazek */}
             {currentQuestion.media.type === 'image' && (
               <Image
                 source={{ 
@@ -140,15 +159,9 @@ export default function OneLifeScreen({ route, navigation }: any) {
               />
             )}
 
-            {/* Przypadek 2: Wideo */}
+            {/* 3. ZMIANA: Użycie QuestionVideo */}
             {currentQuestion.media.type === 'video' && (
-              <Video
-                style={[styles.image, { backgroundColor: '#000' }]} // Dodajemy czarne tło dla wideo
-                source={{ uri: GITHUB_IMAGE_BASE_URL + currentQuestion.media.uri }}
-                useNativeControls
-                resizeMode={ResizeMode.CONTAIN}
-                isLooping
-              />
+              <QuestionVideo uri={GITHUB_IMAGE_BASE_URL + currentQuestion.media.uri} />
             )}
           </View>
         )}
@@ -179,9 +192,21 @@ const styles = StyleSheet.create({
   card: { marginBottom: 30 },
   questionText: { fontSize: 22, fontWeight: 'bold', color: '#fff', marginBottom: 20, textAlign: 'center' },
   
-  // Styl obrazka pasuje teraz też do wideo
   image: { width: '100%', height: 200, backgroundColor: '#333', borderRadius: 12 },
   
+  // Style dla nowego wideo
+  videoContainer: {
+    width: '100%',
+    height: 200,
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  videoView: {
+    width: '100%',
+    height: '100%'
+  },
+
   answersContainer: { gap: 15 },
   answerButton: { flexDirection: 'row', padding: 20, borderRadius: 15, backgroundColor: '#2c2c2e', alignItems: 'center', borderWidth: 1, borderColor: '#444' },
   answerLetter: { fontSize: 18, fontWeight: 'bold', color: '#FF3B30', marginRight: 15 },
