@@ -16,28 +16,28 @@ export const QUALIFICATIONS_DATA = [
     id: 'inf02', 
     title: 'INF.02', 
     fullName: 'Administracja i eksploatacja systemów', 
-    schoolId: 'ti', 
+    schoolIds: ['ti'], 
     apiUrl: `${GITHUB_BASE}/inf02.json` 
   },
   { 
     id: 'inf03', 
     title: 'INF.03', 
     fullName: 'Tworzenie i administrowanie stronami', 
-    schoolId: 'tp', 
+    schoolIds: ['tp', 'ti'], 
     apiUrl: `${GITHUB_BASE}/inf03.json` 
   },
   { 
     id: 'inf04', 
     title: 'INF.04', 
     fullName: 'Projektowanie, programowanie aplikacji', 
-    schoolId: 'tp', 
+    schoolIds: ['tp'], 
     apiUrl: `${GITHUB_BASE}/inf04.json` 
   },
   { 
     id: 'pgf07', 
     title: 'PGF.07', 
     fullName: 'Wykonywanie przekazu reklamowego', 
-    schoolId: 'tr', 
+    schoolIds: ['tr'], 
     apiUrl: `${GITHUB_BASE}/pgf07.json` 
   },
 ];

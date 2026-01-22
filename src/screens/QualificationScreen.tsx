@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  View, Text, StyleSheet, TouchableOpacity, ScrollView, FlatList, StatusBar 
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, FlatList, StatusBar, TextInput 
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import { SCHOOLS, QUALIFICATIONS_DATA } from '../data/categories';
@@ -12,6 +12,9 @@ import QualificationStatsCard from '../components/QualificationStatsCard';
 export default function QualificationScreen({ navigation }: any) {
   const { user, userProfile } = useAuth();
   const [selectedSchool, setSelectedSchool] = useState('all');
+  
+  // 1. NOWY STAN DLA WYSZUKIWARKI
+  const [searchQuery, setSearchQuery] = useState('');
   
   // --- AUTOMATYCZNA SYNCHRONIZACJA ---
   useEffect(() => {
@@ -26,6 +29,7 @@ export default function QualificationScreen({ navigation }: any) {
 
   const handleSelectSchool = async (schoolId: string) => {
     setSelectedSchool(schoolId);
+    setSearchQuery(''); // Czyścimy szukanie przy zmianie zakładki
     if (user && userProfile?.favoriteSchool !== schoolId) {
       try {
         const userRef = doc(db, 'users', user.uid);
@@ -34,9 +38,21 @@ export default function QualificationScreen({ navigation }: any) {
     }
   };
 
-  const filteredQualifications = selectedSchool === 'all' 
-    ? QUALIFICATIONS_DATA 
-    : QUALIFICATIONS_DATA.filter(q => q.schoolId === selectedSchool);
+  // 2. ZAKTUALIZOWANA LOGIKA FILTROWANIA (Szkoła + Wyszukiwarka)
+  const filteredQualifications = QUALIFICATIONS_DATA.filter(q => {
+    // Krok A: Sprawdź czy pasuje do szkoły (obsługa nowej tablicy schoolIds)
+    const matchesSchool = selectedSchool === 'all' 
+      ? true 
+      : q.schoolIds.includes(selectedSchool);
+
+    // Krok B: Sprawdź czy pasuje do wyszukiwania (jeśli wpisano tekst)
+    const matchesSearch = searchQuery === '' 
+      ? true 
+      : (q.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+         q.fullName.toLowerCase().includes(searchQuery.toLowerCase()));
+
+    return matchesSchool && matchesSearch;
+  });
 
   // --- UI ---
   const renderHeader = () => (
@@ -60,42 +76,58 @@ export default function QualificationScreen({ navigation }: any) {
   );
 
   const renderCategories = () => (
-    <View style={styles.categoryContainer}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20 }}>
-        {SCHOOLS.map((school) => (
-          <TouchableOpacity 
-            key={school.id} 
-            style={[
-              styles.categoryPill, 
-              selectedSchool === school.id && styles.categoryPillActive
-            ]}
-            onPress={() => handleSelectSchool(school.id)}
-          >
-            <Text style={styles.categoryIcon}>{school.icon}</Text>
-            <Text style={[
-              styles.categoryText, 
-              selectedSchool === school.id && styles.categoryTextActive
-            ]}>
-              {school.name}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+    <View>
+      <View style={styles.categoryContainer}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20 }}>
+          {SCHOOLS.map((school) => (
+            <TouchableOpacity 
+              key={school.id} 
+              style={[
+                styles.categoryPill, 
+                selectedSchool === school.id && styles.categoryPillActive
+              ]}
+              onPress={() => handleSelectSchool(school.id)}
+            >
+              <Text style={styles.categoryIcon}>{school.icon}</Text>
+              <Text style={[
+                styles.categoryText, 
+                selectedSchool === school.id && styles.categoryTextActive
+              ]}>
+                {school.name}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+
+      {/* 3. POLE WYSZUKIWANIA - Widoczne tylko w zakładce 'Wszystkie' */}
+      {selectedSchool === 'all' && (
+        <View style={styles.searchSection}>
+          <View style={styles.searchBar}>
+            <Text style={styles.searchIcon}>🔍</Text>
+            <TextInput 
+              style={styles.searchInput}
+              placeholder="Szukaj kwalifikacji (np. INF.03)..."
+              placeholderTextColor="#999"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+            {searchQuery.length > 0 && (
+               <TouchableOpacity onPress={() => setSearchQuery('')}>
+                 <Text style={styles.clearIcon}>✕</Text>
+               </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      )}
     </View>
   );
 
-  // --- STATYSTYKI OGÓLNE (ZBIORCZE) ---
   const renderGeneralStats = () => {
-    // 1. ZMIANA: Jeśli wybrano "Wszystkie", nie pokazuj statystyk
     if (selectedSchool === 'all') return null;
-
-    // 2. Jeśli nie ma wyników w filtrze, też nie pokazuj
     if (filteredQualifications.length === 0) return null;
 
-    // Pobierz wszystkie ID egzaminów widoczne na liście
     const schoolExamIds = filteredQualifications.map(q => q.id);
-    
-    // Ustal tytuł karty
     const schoolName = SCHOOLS.find(s => s.id === selectedSchool)?.name || 'Twoje Postępy';
 
     return (
@@ -121,7 +153,6 @@ export default function QualificationScreen({ navigation }: any) {
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContent}
         
-        // Wyświetlamy kartę zbiorczą TYLKO dla konkretnych szkół (dzięki zmianie w funkcji renderGeneralStats)
         ListHeaderComponent={renderGeneralStats()}
         
         renderItem={({ item }) => (
@@ -143,7 +174,9 @@ export default function QualificationScreen({ navigation }: any) {
         )}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>Brak kwalifikacji w tej kategorii.</Text>
+            <Text style={styles.emptyText}>
+              {searchQuery ? 'Nie znaleziono takiej kwalifikacji.' : 'Brak kwalifikacji w tej kategorii.'}
+            </Text>
           </View>
         }
       />
@@ -165,6 +198,17 @@ const styles = StyleSheet.create({
   categoryIcon: { marginRight: 8 },
   categoryText: { color: '#666', fontWeight: '600' },
   categoryTextActive: { color: '#fff' },
+  
+  // NOWE STYLE DLA WYSZUKIWARKI
+  searchSection: { paddingHorizontal: 20, marginTop: 15 },
+  searchBar: { 
+    flexDirection: 'row', alignItems: 'center', backgroundColor: '#F0F2F5', 
+    borderRadius: 12, paddingHorizontal: 15, height: 45 
+  },
+  searchIcon: { marginRight: 10, fontSize: 16 },
+  searchInput: { flex: 1, color: '#333', fontSize: 15 },
+  clearIcon: { fontSize: 16, color: '#999', padding: 5 },
+
   listContent: { padding: 20, paddingTop: 30 },
   qualCard: { backgroundColor: '#fff', borderRadius: 16, padding: 20, marginBottom: 15, flexDirection: 'row', alignItems: 'center', elevation: 2, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 5 },
   qualIconContainer: { width: 50, height: 50, borderRadius: 12, backgroundColor: '#E3F2FD', justifyContent: 'center', alignItems: 'center', marginRight: 15 },

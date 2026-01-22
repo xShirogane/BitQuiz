@@ -1,9 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, ScrollView, BackHandler, Image } from 'react-native';
+import { 
+  View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, 
+  Alert, ScrollView, BackHandler, Image 
+} from 'react-native';
 import { db } from '../config/firebase'; 
 import { doc, onSnapshot, updateDoc, increment } from 'firebase/firestore';
+// 1. IMPORTUJEMY MODUŁ WIDEO
+import { Video, ResizeMode } from 'expo-av';
 
-// ADRES BAZOWY DO ZDJĘĆ (Musi być taki sam jak w innych plikach)
+// ADRES BAZOWY DO ZDJĘĆ I WIDEO
 const GITHUB_IMAGE_BASE_URL = 'https://raw.githubusercontent.com/xShirogane/BitQuiz-Assets/main/';
 
 export default function MultiplayerGameScreen({ route, navigation }: any) {
@@ -13,6 +18,10 @@ export default function MultiplayerGameScreen({ route, navigation }: any) {
   const [currentIndex, setCurrentIndex] = useState(0); 
   const [finished, setFinished] = useState(false); 
   
+  // Stan licznika czasu
+  const [timeLeft, setTimeLeft] = useState(45);
+
+  // Zabezpieczenie przed wyjściem przyciskiem "Wstecz"
   useEffect(() => {
     const backAction = () => {
       Alert.alert("Czekaj!", "Nie możesz wyjść w trakcie pojedynku.", [{ text: "OK" }]);
@@ -22,6 +31,7 @@ export default function MultiplayerGameScreen({ route, navigation }: any) {
     return () => backHandler.remove();
   }, []);
 
+  // Synchronizacja z Firebase
   useEffect(() => {
     const roomRef = doc(db, 'battles', roomCode);
     const unsubscribe = onSnapshot(roomRef, (docSnap) => {
@@ -35,6 +45,30 @@ export default function MultiplayerGameScreen({ route, navigation }: any) {
     });
     return () => unsubscribe();
   }, []);
+
+  // --- LOGIKA TIMERA ---
+  useEffect(() => {
+    setTimeLeft(45);
+  }, [currentIndex]);
+
+  useEffect(() => {
+    // Nie odliczaj, jeśli gra się nie zaczęła, skończyła lokalnie lub skończyła globalnie
+    if (!gameData || gameData.status === 'waiting' || finished) return;
+
+    // Sprawdź czy oboje skończyli (żeby zatrzymać timer w tle)
+    if (gameData.hostFinished && gameData.guestFinished) return;
+
+    if (timeLeft <= 0) {
+      handleAnswer(-1); // Czas minął
+      return;
+    }
+
+    const timerId = setInterval(() => {
+      setTimeLeft((prev) => prev - 1);
+    }, 1000);
+
+    return () => clearInterval(timerId);
+  }, [timeLeft, finished, gameData, currentIndex]);
 
   const handleAnswer = async (selectedIndex: number) => {
     if (!gameData) return;
@@ -54,7 +88,10 @@ export default function MultiplayerGameScreen({ route, navigation }: any) {
     if (currentIndex < gameData.questions.length - 1) {
       setCurrentIndex(currentIndex + 1);
     } else {
+      // 1. Ustaw lokalną flagę "Skończyłem"
       setFinished(true);
+      
+      // 2. Wyślij do Firebase informację, że ten gracz skończył
       const fieldFinished = isHost ? 'hostFinished' : 'guestFinished';
       await updateDoc(doc(db, 'battles', roomCode), {
         [fieldFinished]: true
@@ -62,6 +99,7 @@ export default function MultiplayerGameScreen({ route, navigation }: any) {
     }
   };
 
+  // --- 1. EKRAN OCZEKIWANIA NA START ---
   if (!gameData || gameData.status === 'waiting') {
     return (
       <View style={styles.centerContainer}>
@@ -73,11 +111,35 @@ export default function MultiplayerGameScreen({ route, navigation }: any) {
     );
   }
 
-  if (finished) {
+  // Sprawdzamy, czy OBOJE gracze skończyli
+  const allFinished = gameData.hostFinished && gameData.guestFinished;
+
+  // --- 2. EKRAN "CZEKAM NA PRZECIWNIKA" (Gdy ja skończyłem, a on nie) ---
+  if (finished && !allFinished) {
+    const myScore = isHost ? gameData.hostScore : gameData.guestScore;
+    
+    return (
+      <View style={styles.centerContainer}>
+        <Text style={styles.waitingTitle}>Ukończyłeś test! 🏁</Text>
+        <Text style={{ fontSize: 18, color: '#555', marginBottom: 30, fontWeight: 'bold' }}>
+          Twój wynik: {myScore} pkt
+        </Text>
+        
+        <ActivityIndicator size="large" color="#FF9500" />
+        
+        <Text style={{ marginTop: 20, color: '#888', textAlign: 'center', paddingHorizontal: 40 }}>
+          Czekamy, aż przeciwnik odpowie na wszystkie pytania...
+        </Text>
+      </View>
+    );
+  }
+
+  // --- 3. EKRAN WYNIKU KOŃCOWEGO (Gdy oboje skończyli) ---
+  if (allFinished) {
     const myScore = isHost ? gameData.hostScore : gameData.guestScore;
     const oppScore = isHost ? gameData.guestScore : gameData.hostScore;
     
-    let resultText = "CZEKAMY NA WYNIK...";
+    let resultText = "";
     let resultColor = "#666";
     
     if (myScore > oppScore) {
@@ -94,6 +156,7 @@ export default function MultiplayerGameScreen({ route, navigation }: any) {
     return (
       <View style={styles.centerContainer}>
         <Text style={[styles.resultTitle, { color: resultColor }]}>{resultText}</Text>
+        
         <View style={styles.scoreBoard}>
           <View style={styles.scoreBox}>
             <Text style={styles.scoreLabel}>TY</Text>
@@ -105,6 +168,7 @@ export default function MultiplayerGameScreen({ route, navigation }: any) {
             <Text style={styles.bigScore}>{oppScore}</Text>
           </View>
         </View>
+
         <TouchableOpacity style={styles.leaveButton} onPress={() => navigation.popToTop()}>
           <Text style={styles.leaveButtonText}>WRÓĆ DO MENU</Text>
         </TouchableOpacity>
@@ -114,8 +178,10 @@ export default function MultiplayerGameScreen({ route, navigation }: any) {
 
   const currentQ = gameData.questions[currentIndex];
 
+  // --- 4. EKRAN ROZGRYWKI (Gdy gra trwa) ---
   return (
     <ScrollView contentContainerStyle={styles.gameContainer}>
+      {/* Pasek Górny (Wyniki na żywo) */}
       <View style={styles.topBar}>
         <View style={[styles.playerBadge, isHost && styles.activeBadge]}>
           <Text style={styles.playerText}>Host (Ty)</Text>
@@ -127,23 +193,53 @@ export default function MultiplayerGameScreen({ route, navigation }: any) {
         </View>
       </View>
 
+      {/* PASEK CZASU */}
+      <View style={styles.timerContainer}>
+        <View style={[
+          styles.timerBar, 
+          { 
+            width: `${(timeLeft / 45) * 100}%`,
+            backgroundColor: timeLeft < 10 ? '#FF3B30' : '#007AFF' 
+          }
+        ]} />
+        <Text style={styles.timerText}>⏳ {timeLeft}s</Text>
+      </View>
+
       <Text style={styles.progress}>Pytanie {currentIndex + 1} / {gameData.questions.length}</Text>
       
+      {/* Karta Pytania */}
       <View style={styles.questionCard}>
         <Text style={styles.questionText}>{currentQ.text}</Text>
         
-        {/* --- TUTAJ JEST FIX NA ZDJĘCIA --- */}
-        {currentQ.media && currentQ.media.type === 'image' && (
-          <Image
-            source={{ uri: GITHUB_IMAGE_BASE_URL + currentQ.media.uri }}
-            style={styles.image}
-            resizeMode="contain"
-            // To pomoże nam zdebugować błąd w konsoli:
-            onError={(e) => console.log("Błąd ładowania zdjęcia:", e.nativeEvent.error)} 
-          />
+        {/* --- 2. OBSŁUGA MEDIÓW (Obrazek i Wideo) --- */}
+        {currentQ.media && (
+          <View style={{ marginBottom: 20, width: '100%', alignItems: 'center' }}>
+            
+            {/* Przypadek 1: Obrazek */}
+            {currentQ.media.type === 'image' && (
+              <Image
+                source={{ uri: GITHUB_IMAGE_BASE_URL + currentQ.media.uri }}
+                style={styles.image}
+                resizeMode="contain"
+                onError={(e) => console.log("Błąd ładowania zdjęcia:", e.nativeEvent.error)} 
+              />
+            )}
+
+            {/* Przypadek 2: Wideo */}
+            {currentQ.media.type === 'video' && (
+              <Video
+                style={[styles.image, { backgroundColor: '#000' }]} 
+                source={{ uri: GITHUB_IMAGE_BASE_URL + currentQ.media.uri }}
+                useNativeControls
+                resizeMode={ResizeMode.CONTAIN}
+                isLooping
+              />
+            )}
+          </View>
         )}
       </View>
 
+      {/* Odpowiedzi */}
       <View style={styles.answersContainer}>
         {currentQ.answers.map((ans: string, idx: number) => (
           <TouchableOpacity 
@@ -166,17 +262,39 @@ const styles = StyleSheet.create({
   codeText: { fontSize: 32, fontWeight: '900', color: '#007AFF', letterSpacing: 2 },
   
   gameContainer: { flexGrow: 1, padding: 20, backgroundColor: '#fff', paddingTop: 50 },
-  topBar: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20, backgroundColor: '#f0f0f0', borderRadius: 12, padding: 5 },
+  topBar: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 15, backgroundColor: '#f0f0f0', borderRadius: 12, padding: 5 },
   playerBadge: { flex: 1, alignItems: 'center', padding: 10, borderRadius: 10 },
   activeBadge: { backgroundColor: '#fff', elevation: 2 },
   playerText: { fontSize: 12, color: '#666', fontWeight: 'bold' },
   scoreText: { fontSize: 24, fontWeight: '900', color: '#333' },
 
+  timerContainer: {
+    width: '100%',
+    height: 10,
+    backgroundColor: '#E0E0E0',
+    borderRadius: 5,
+    marginBottom: 20,
+    overflow: 'visible', 
+    position: 'relative',
+    marginTop: 10
+  },
+  timerBar: {
+    height: '100%',
+    borderRadius: 5,
+  },
+  timerText: {
+    position: 'absolute',
+    top: -22,
+    right: 0,
+    fontWeight: 'bold',
+    color: '#555',
+    fontSize: 12
+  },
+
   progress: { textAlign: 'center', color: '#888', marginBottom: 10 },
   questionCard: { marginBottom: 30 },
   questionText: { fontSize: 20, fontWeight: 'bold', color: '#333', textAlign: 'center', marginBottom: 20 },
   
-  // Styl dla obrazka
   image: { width: '100%', height: 200, marginBottom: 20, backgroundColor: '#f0f0f0', borderRadius: 8 },
 
   answersContainer: { gap: 12 },

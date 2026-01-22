@@ -4,6 +4,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../context/AuthContext';
 import { cacheImages } from '../utils/offlineManager';
 import * as FileSystem from 'expo-file-system/legacy';
+// 1. IMPORTUJEMY MODUŁ WIDEO
+import { Video, ResizeMode } from 'expo-av';
 
 const GITHUB_IMAGE_BASE_URL = 'https://raw.githubusercontent.com/xShirogane/BitQuiz-Assets/main/';
 
@@ -16,7 +18,6 @@ export interface Question {
 }
 
 export default function OneLifeScreen({ route, navigation }: any) {
-  // POPRAWKA: Tutaj pobieramy examId
   const { apiUrl, examId } = route.params;
   const { userProfile } = useAuth();
 
@@ -94,7 +95,7 @@ export default function OneLifeScreen({ route, navigation }: any) {
       questions: [], 
       userAnswers: [], 
       mode: 'onelife',
-      examId: examId // Teraz ta zmienna jest już dostępna
+      examId: examId 
     });
   };
 
@@ -121,16 +122,35 @@ export default function OneLifeScreen({ route, navigation }: any) {
 
       <View style={styles.card}>
         <Text style={styles.questionText}>{currentQuestion.text}</Text>
-        {currentQuestion.media && currentQuestion.media.type === 'image' && (
-          <Image
-            source={{ 
-              uri: currentQuestion.media.localFileName 
-                ? `${FileSystem.documentDirectory}${currentQuestion.media.localFileName}`
-                : GITHUB_IMAGE_BASE_URL + currentQuestion.media.uri 
-            }}
-            style={styles.image}
-            resizeMode="contain"
-          />
+        
+        {/* --- 2. OBSŁUGA MEDIÓW (Obrazek i Wideo) --- */}
+        {currentQuestion.media && (
+          <View style={{ marginBottom: 20, width: '100%', alignItems: 'center' }}>
+            
+            {/* Przypadek 1: Obrazek */}
+            {currentQuestion.media.type === 'image' && (
+              <Image
+                source={{ 
+                  uri: currentQuestion.media.localFileName 
+                    ? `${FileSystem.documentDirectory}${currentQuestion.media.localFileName}`
+                    : GITHUB_IMAGE_BASE_URL + currentQuestion.media.uri 
+                }}
+                style={styles.image}
+                resizeMode="contain"
+              />
+            )}
+
+            {/* Przypadek 2: Wideo */}
+            {currentQuestion.media.type === 'video' && (
+              <Video
+                style={[styles.image, { backgroundColor: '#000' }]} // Dodajemy czarne tło dla wideo
+                source={{ uri: GITHUB_IMAGE_BASE_URL + currentQuestion.media.uri }}
+                useNativeControls
+                resizeMode={ResizeMode.CONTAIN}
+                isLooping
+              />
+            )}
+          </View>
         )}
       </View>
 
@@ -158,7 +178,10 @@ const styles = StyleSheet.create({
   livesText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
   card: { marginBottom: 30 },
   questionText: { fontSize: 22, fontWeight: 'bold', color: '#fff', marginBottom: 20, textAlign: 'center' },
+  
+  // Styl obrazka pasuje teraz też do wideo
   image: { width: '100%', height: 200, backgroundColor: '#333', borderRadius: 12 },
+  
   answersContainer: { gap: 15 },
   answerButton: { flexDirection: 'row', padding: 20, borderRadius: 15, backgroundColor: '#2c2c2e', alignItems: 'center', borderWidth: 1, borderColor: '#444' },
   answerLetter: { fontSize: 18, fontWeight: 'bold', color: '#FF3B30', marginRight: 15 },

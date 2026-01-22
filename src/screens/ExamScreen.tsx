@@ -4,8 +4,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../context/AuthContext';
 import { cacheImages } from '../utils/offlineManager';
 import * as FileSystem from 'expo-file-system/legacy';
-// 1. NOWOŚĆ: Importujemy przeglądarkę zdjęć
+// 1. Import przeglądarki zdjęć
 import ImageView from "react-native-image-viewing";
+// 2. NOWOŚĆ: Import obsługi wideo
+import { Video, ResizeMode } from 'expo-av';
 
 // Pamiętaj o ukośniku na końcu i 'raw' w adresie!
 const GITHUB_IMAGE_BASE_URL = 'https://raw.githubusercontent.com/xShirogane/BitQuiz-Assets/main/';
@@ -28,7 +30,7 @@ export default function ExamScreen({ route, navigation }: any) {
   const [userAnswers, setUserAnswers] = useState<(number | null)[]>([]);
   const [error, setError] = useState<string | null>(null);
   
-  // 2. NOWOŚĆ: Stan widoczności galerii (zoomowania)
+  // Stan widoczności galerii (zoomowania)
   const [isGalleryVisible, setIsGalleryVisible] = useState(false);
 
   // Stan dla licznika czasu
@@ -74,6 +76,7 @@ export default function ExamScreen({ route, navigation }: any) {
       if (!response.ok) throw new Error('Błąd sieci');
       
       const rawQuestions: Question[] = await response.json();
+      // Cache'ujemy obrazki (funkcja z offlineManager)
       const questionsWithImages = await cacheImages(rawQuestions);
       
       try {
@@ -177,7 +180,7 @@ export default function ExamScreen({ route, navigation }: any) {
 
   const currentQuestion = questions[currentIndex];
   
-  // 3. NOWOŚĆ: Wyciągamy logikę adresu obrazka do zmiennej, żeby użyć jej w 2 miejscach
+  // Logika adresu obrazka (obsługa offline)
   let imageSource = null;
   if (currentQuestion.media?.type === 'image') {
     imageSource = {
@@ -208,13 +211,15 @@ export default function ExamScreen({ route, navigation }: any) {
 
       <Text style={styles.questionText}>{currentQuestion.text}</Text>
 
-      {/* 4. NOWOŚĆ: Wyświetlanie obrazka z obsługą zoomu */}
+      {/* --- SEKCJA MEDIÓW --- */}
+      
+      {/* 1. OBRAZKI (z zoomem) */}
       {imageSource && (
         <>
             <TouchableOpacity onPress={() => setIsGalleryVisible(true)} activeOpacity={0.9}>
                 <Image
                     source={imageSource}
-                    style={styles.image}
+                    style={styles.mediaFrame}
                     resizeMode="contain"
                 />
                 <Text style={styles.zoomHint}>🔍 Kliknij, aby powiększyć</Text>
@@ -227,6 +232,19 @@ export default function ExamScreen({ route, navigation }: any) {
                 onRequestClose={() => setIsGalleryVisible(false)}
             />
         </>
+      )}
+
+      {/* 2. WIDEO (nowość) */}
+      {currentQuestion.media?.type === 'video' && (
+        <View style={{ marginBottom: 20 }}>
+          <Video
+            style={styles.mediaFrame}
+            source={{ uri: GITHUB_IMAGE_BASE_URL + currentQuestion.media.uri }}
+            useNativeControls
+            resizeMode={ResizeMode.CONTAIN}
+            isLooping
+          />
+        </View>
       )}
 
       <View style={styles.answersContainer}>
@@ -285,8 +303,9 @@ const styles = StyleSheet.create({
 
   questionText: { fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 20, lineHeight: 26 },
   
-  image: { width: '100%', height: 250, backgroundColor: '#f9f9f9', borderRadius: 8, borderWidth: 1, borderColor: '#eee' },
-  // 5. NOWOŚĆ: Styl dla napisu podpowiedzi
+  // Zmieniłem nazwę z 'image' na 'mediaFrame', żeby pasowała też do wideo
+  mediaFrame: { width: '100%', height: 250, backgroundColor: '#f9f9f9', borderRadius: 8, borderWidth: 1, borderColor: '#eee' },
+  
   zoomHint: { textAlign: 'center', color: '#007AFF', fontSize: 12, marginBottom: 20, marginTop: 5 },
 
   answersContainer: { gap: 12, marginBottom: 30 },

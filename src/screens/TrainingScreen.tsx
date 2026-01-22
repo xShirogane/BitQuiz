@@ -1,226 +1,250 @@
-// src/screens/TrainingScreen.tsx
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, ActivityIndicator } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useAuth } from '../context/AuthContext';
-import * as FileSystem from 'expo-file-system/legacy'; // <--- ZMIANA IMPORTU NA LEGACY
-import { cacheImages } from '../utils/offlineManager';
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, 
+  ActivityIndicator, Image, TextInput, Alert, Keyboard 
+} from 'react-native';
+// 1. IMPORTUJEMY MODUŁ WIDEO
+import { Video, ResizeMode } from 'expo-av';
 
-const GITHUB_IMAGE_BASE_URL = 'https://raw.githubusercontent.com/xShirogane/BitQuiz-Assets/main/';
-
-export interface Question {
-  id: number;
-  text: string;
-  answers: string[];
-  correctAnswerIndex: number | null;
-  media?: { type: 'image' | 'video'; uri: string; localFileName?: string } | null;
-}
+// ADRES BAZOWY (dla zdjęć i wideo)
+const GITHUB_BASE_URL = 'https://raw.githubusercontent.com/xShirogane/BitQuiz-Assets/main/';
 
 export default function TrainingScreen({ route, navigation }: any) {
   const { apiUrl } = route.params;
-  const { userProfile } = useAuth();
 
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [questions, setQuestions] = useState<any[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  
-  const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
-  const [isAnswered, setIsAnswered] = useState(false);
-  const [score, setScore] = useState(0);
+  const [loading, setLoading] = useState(true);
 
-  const [error, setError] = useState<string | null>(null);
+  const [selectedAnswerIndex, setSelectedAnswerIndex] = useState<number | null>(null);
+  const [jumpText, setJumpText] = useState('');
+
+  // Ref do wideo, aby móc np. zatrzymać je przy zmianie pytania (opcjonalne)
+  const videoRef = useRef<Video>(null);
 
   useEffect(() => {
     fetchQuestions();
   }, []);
 
   const fetchQuestions = async () => {
-    const cacheKey = `quiz_cache_${apiUrl}`;
-
     try {
       const response = await fetch(apiUrl);
-      if (!response.ok) throw new Error('Błąd sieci');
-      const rawQuestions: Question[] = await response.json();
-      
-      const questionsWithImages = await cacheImages(rawQuestions);
-
-      try {
-        await AsyncStorage.setItem(cacheKey, JSON.stringify(questionsWithImages));
-      } catch (e) {
-        console.warn('Błąd zapisu cache', e);
-      }
-
-      processQuestions(questionsWithImages);
-
-    } catch (err) {
-      console.log('Błąd sieci, próba offline...', err);
-
-      if (!userProfile?.isPro) {
-        setError('Brak internetu. Tryb Offline dostępny tylko w wersji PRO 👑.');
-        setLoading(false);
-        return;
-      }
-
-      try {
-        const cachedData = await AsyncStorage.getItem(cacheKey);
-        if (cachedData) {
-          const allQuestions = JSON.parse(cachedData);
-          processQuestions(allQuestions);
-        } else {
-          setError('Brak internetu i brak zapisanych pytań.');
-          setLoading(false);
-        }
-      } catch (storageErr) {
-        setError('Błąd odczytu danych offline.');
-        setLoading(false);
-      }
+      const data = await response.json();
+      setQuestions(data);
+      setLoading(false);
+    } catch (error) {
+      console.error(error);
+      setLoading(false);
+      Alert.alert("Błąd", "Nie udało się pobrać pytań.");
+      navigation.goBack();
     }
-  };
-
-  const processQuestions = (allQuestions: Question[]) => {
-    const shuffled = allQuestions.sort(() => 0.5 - Math.random());
-    setQuestions(shuffled);
-    setLoading(false);
   };
 
   const handleAnswer = (index: number) => {
-    if (isAnswered) return;
-    setSelectedAnswer(index);
-    setIsAnswered(true);
-
-    const currentQ = questions[currentIndex];
-    if (currentQ.correctAnswerIndex === index) {
-      setScore(score + 1);
-    }
+    if (selectedAnswerIndex !== null) return; 
+    setSelectedAnswerIndex(index);
   };
 
-  const nextQuestion = () => {
+  const goToNext = () => {
     if (currentIndex < questions.length - 1) {
-      setCurrentIndex(currentIndex + 1);
-      setSelectedAnswer(null);
-      setIsAnswered(false);
-    } else {
-      navigation.navigate('Result', {
-        score: score,
-        total: questions.length,
-        questions: questions,
-        userAnswers: new Array(questions.length).fill(null), 
-        mode: 'training'
-      });
+      setCurrentIndex(prev => prev + 1);
+      setSelectedAnswerIndex(null); 
     }
   };
 
-  if (loading) return <View style={styles.center}><ActivityIndicator size="large" color="#007AFF" /></View>;
-  
-  if (error) return (
-    <View style={styles.center}>
-      <Text style={styles.errorText}>{error}</Text>
-      <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-        <Text style={styles.backButtonText}>Wróć</Text>
-      </TouchableOpacity>
-    </View>
-  );
+  const goToPrev = () => {
+    if (currentIndex > 0) {
+      setCurrentIndex(prev => prev - 1);
+      setSelectedAnswerIndex(null); 
+    }
+  };
 
-  const currentQuestion = questions[currentIndex];
-  const isCorrect = selectedAnswer === currentQuestion.correctAnswerIndex;
+  const handleJumpToQuestion = () => {
+    const questionNumber = parseInt(jumpText, 10);
+    if (isNaN(questionNumber)) {
+      Alert.alert("Błąd", "Wpisz poprawny numer.");
+      return;
+    }
+    if (questionNumber < 1 || questionNumber > questions.length) {
+      Alert.alert("Błąd", `Wpisz numer od 1 do ${questions.length}.`);
+      return;
+    }
+    setCurrentIndex(questionNumber - 1);
+    setSelectedAnswerIndex(null);
+    setJumpText(''); 
+    Keyboard.dismiss();
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color="#007AFF" />
+        <Text style={{ marginTop: 10, color: '#666' }}>Ładowanie bazy wiedzy...</Text>
+      </View>
+    );
+  }
+
+  const currentQ = questions[currentIndex];
+  const isAnswered = selectedAnswerIndex !== null;
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <View style={styles.container}>
       
-      <View style={styles.header}>
-        <Text style={styles.progressText}>Pytanie {currentIndex + 1} / {questions.length}</Text>
-        <Text style={styles.modeText}>TRYB NAUKI 🎓</Text>
-      </View>
-
-      <Text style={styles.questionText}>{currentQuestion.text}</Text>
-
-      {currentQuestion.media && currentQuestion.media.type === 'image' && (
-        <Image
-          source={{ 
-            uri: currentQuestion.media.localFileName 
-              ? `${FileSystem.documentDirectory}${currentQuestion.media.localFileName}` 
-              : GITHUB_IMAGE_BASE_URL + currentQuestion.media.uri 
-          }}
-          style={styles.image}
-          resizeMode="contain"
-        />
-      )}
-
-      <View style={styles.answersContainer}>
-        {currentQuestion.answers.map((ans, idx) => {
-          let buttonStyle = styles.answerButton;
-          let textStyle = styles.answerText;
-          let letterStyle = styles.answerLetter;
-
-          if (isAnswered) {
-            if (idx === currentQuestion.correctAnswerIndex) {
-              buttonStyle = { ...styles.answerButton, ...styles.correctButton };
-              textStyle = { ...styles.answerText, color: '#fff' };
-              letterStyle = { ...styles.answerLetter, color: '#fff' };
-            } else if (idx === selectedAnswer) {
-              buttonStyle = { ...styles.answerButton, ...styles.wrongButton };
-              textStyle = { ...styles.answerText, color: '#fff' };
-              letterStyle = { ...styles.answerLetter, color: '#fff' };
-            }
-          }
-
-          return (
-            <TouchableOpacity 
-              key={idx} 
-              style={buttonStyle} 
-              onPress={() => handleAnswer(idx)}
-              disabled={isAnswered}
-            >
-              <Text style={letterStyle}>{['A','B','C','D'][idx]}.</Text>
-              <Text style={textStyle}>{ans}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-
-      {isAnswered && (
-        <View style={styles.footer}>
-          <Text style={[styles.feedbackText, isCorrect ? styles.textGreen : styles.textRed]}>
-            {isCorrect ? "Świetnie! Dobra odpowiedź." : "Niestety, to błąd."}
-          </Text>
-          <TouchableOpacity style={styles.nextButton} onPress={nextQuestion}>
-            <Text style={styles.nextButtonText}>
-              {currentIndex === questions.length - 1 ? 'ZAKOŃCZ' : 'NASTĘPNE PYTANIE'}
-            </Text>
+      {/* GÓRNY PASEK */}
+      <View style={styles.topBar}>
+        <Text style={styles.counterText}>
+          Pytanie {currentIndex + 1} / {questions.length}
+        </Text>
+        
+        <View style={styles.jumpContainer}>
+          <TextInput 
+            style={styles.jumpInput}
+            placeholder="#"
+            placeholderTextColor="#999"
+            keyboardType="numeric"
+            value={jumpText}
+            onChangeText={setJumpText}
+            maxLength={4}
+          />
+          <TouchableOpacity style={styles.jumpButton} onPress={handleJumpToQuestion}>
+            <Text style={styles.jumpButtonText}>IDŹ</Text>
           </TouchableOpacity>
         </View>
-      )}
+      </View>
 
-    </ScrollView>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <Text style={styles.questionText}>{currentQ.text}</Text>
+
+        {/* --- OBSŁUGA MEDIÓW (ZDJĘCIA I WIDEO) --- */}
+        {currentQ.media && (
+          <View style={styles.mediaContainer}>
+            {/* PRZYPADEK 1: OBRAZEK */}
+            {currentQ.media.type === 'image' && (
+              <Image
+                source={{ uri: GITHUB_BASE_URL + currentQ.media.uri }}
+                style={styles.image}
+                resizeMode="contain"
+              />
+            )}
+
+            {/* PRZYPADEK 2: WIDEO (NOWOŚĆ!) */}
+            {currentQ.media.type === 'video' && (
+              <Video
+                ref={videoRef}
+                style={styles.video}
+                source={{ uri: GITHUB_BASE_URL + currentQ.media.uri }}
+                useNativeControls
+                resizeMode={ResizeMode.CONTAIN}
+                isLooping
+              />
+            )}
+          </View>
+        )}
+
+        {/* ODPOWIEDZI */}
+        <View style={styles.answersContainer}>
+          {currentQ.answers.map((ans: string, idx: number) => {
+            let backgroundColor = '#fff';
+            let borderColor = '#E0E0E0';
+            let textColor = '#333';
+
+            if (isAnswered) {
+              if (idx === currentQ.correctAnswerIndex) {
+                backgroundColor = '#D4EDDA'; 
+                borderColor = '#28A745';
+                textColor = '#155724';
+              } else if (idx === selectedAnswerIndex) {
+                backgroundColor = '#F8D7DA';
+                borderColor = '#DC3545';
+                textColor = '#721C24';
+              }
+            } else if (selectedAnswerIndex === idx) {
+                backgroundColor = '#E3F2FD';
+            }
+
+            return (
+              <TouchableOpacity 
+                key={idx} 
+                style={[styles.answerButton, { backgroundColor, borderColor }]} 
+                onPress={() => handleAnswer(idx)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.answerLetter, { color: isAnswered && idx === currentQ.correctAnswerIndex ? '#155724' : '#007AFF' }]}>
+                  {['A','B','C','D'][idx]}.
+                </Text>
+                <Text style={[styles.answerText, { color: textColor }]}>{ans}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </ScrollView>
+
+      {/* DOLNY PASEK */}
+      <View style={styles.bottomNav}>
+        <TouchableOpacity 
+          style={[styles.navButton, currentIndex === 0 && styles.disabledButton]} 
+          onPress={goToPrev}
+          disabled={currentIndex === 0}
+        >
+          <Text style={styles.navButtonText}>← Poprzednie</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={[styles.navButton, currentIndex === questions.length - 1 && styles.disabledButton]} 
+          onPress={goToNext}
+          disabled={currentIndex === questions.length - 1}
+        >
+          <Text style={styles.navButtonText}>Następne →</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 20, paddingBottom: 50, backgroundColor: '#fff', flexGrow: 1 },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
-  errorText: { color: 'red', fontSize: 16, textAlign: 'center', marginBottom: 20 },
-  backButton: { backgroundColor: '#333', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8 },
-  backButtonText: { color: '#fff', fontWeight: 'bold' },
+  container: { flex: 1, backgroundColor: '#F5F7FA' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  
+  topBar: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 20, paddingTop: 15, paddingBottom: 15,
+    backgroundColor: '#fff', elevation: 2, zIndex: 10
+  },
+  counterText: { fontSize: 16, fontWeight: 'bold', color: '#555' },
+  jumpContainer: { flexDirection: 'row', alignItems: 'center' },
+  jumpInput: { 
+    backgroundColor: '#F0F2F5', width: 60, height: 36, borderRadius: 8, 
+    textAlign: 'center', marginRight: 8, borderWidth: 1, borderColor: '#DDD' 
+  },
+  jumpButton: { backgroundColor: '#007AFF', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
+  jumpButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 12 },
 
-  header: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
-  progressText: { color: '#666' },
-  modeText: { fontWeight: 'bold', color: '#007AFF' },
+  scrollContent: { padding: 20, paddingBottom: 100 },
+  questionText: { fontSize: 20, fontWeight: 'bold', color: '#333', marginBottom: 20, lineHeight: 28 },
+  
+  // --- Style dla mediów ---
+  mediaContainer: { marginBottom: 20, width: '100%', alignItems: 'center' },
+  image: { width: '100%', height: 200, backgroundColor: '#fff', borderRadius: 8 },
+  video: { width: '100%', height: 200, backgroundColor: '#000', borderRadius: 8 },
 
-  questionText: { fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 20, lineHeight: 26 },
-  image: { width: '100%', height: 250, marginBottom: 20, backgroundColor: '#f9f9f9', borderRadius: 8, borderWidth: 1, borderColor: '#eee' },
+  answersContainer: { gap: 12 },
+  answerButton: { 
+    flexDirection: 'row', padding: 16, borderRadius: 12, 
+    borderWidth: 2, alignItems: 'center' 
+  },
+  answerLetter: { fontSize: 18, fontWeight: 'bold', marginRight: 15 },
+  answerText: { fontSize: 16, flex: 1, lineHeight: 22 },
 
-  answersContainer: { gap: 12, marginBottom: 30 },
-  answerButton: { flexDirection: 'row', padding: 16, borderRadius: 12, backgroundColor: '#fff', borderWidth: 1, borderColor: '#ddd', alignItems: 'center' },
-  answerLetter: { fontSize: 16, fontWeight: 'bold', color: '#007AFF', marginRight: 12 },
-  answerText: { fontSize: 16, color: '#333', flex: 1 },
-
-  correctButton: { backgroundColor: '#4CAF50', borderColor: '#4CAF50' },
-  wrongButton: { backgroundColor: '#F44336', borderColor: '#F44336' },
-
-  footer: { marginTop: 10, alignItems: 'center' },
-  feedbackText: { fontSize: 16, fontWeight: 'bold', marginBottom: 15 },
-  textGreen: { color: '#4CAF50' },
-  textRed: { color: '#F44336' },
-  nextButton: { backgroundColor: '#007AFF', paddingVertical: 15, paddingHorizontal: 40, borderRadius: 30, width: '100%', alignItems: 'center' },
-  nextButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 }
+  bottomNav: {
+    flexDirection: 'row', padding: 15, backgroundColor: '#fff', 
+    borderTopWidth: 1, borderTopColor: '#eee',
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    justifyContent: 'space-between'
+  },
+  navButton: { 
+    backgroundColor: '#007AFF', paddingVertical: 12, paddingHorizontal: 20, 
+    borderRadius: 25, minWidth: 120, alignItems: 'center'
+  },
+  disabledButton: { backgroundColor: '#CCC' },
+  navButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 14 }
 });

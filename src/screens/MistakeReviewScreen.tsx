@@ -11,6 +11,8 @@ import { db } from '../config/firebase';
 import { collection, getDocs, doc, updateDoc, deleteDoc, increment } from 'firebase/firestore';
 import { Ionicons } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system'; 
+// 1. NOWOŚĆ: Import wideo
+import { Video, ResizeMode } from 'expo-av';
 
 // Baza do zdjęć
 const GITHUB_BASE = 'https://raw.githubusercontent.com/xShirogane/BitQuiz-Assets/main/';
@@ -77,14 +79,14 @@ export default function MistakeReviewScreen({ navigation }: Props) {
     fetchMistakes();
   }, [user]);
 
-  // LOGIKA OBRAZKÓW
+  // LOGIKA OBRAZKÓW (Lokalne vs Zdalne)
   useEffect(() => {
     const currentQ = questions[currentIndex];
     if (currentQ?.media?.type === 'image') {
       const uri = currentQ.media.uri;
       const localFileName = currentQ.media.localFileName || uri.replace(/\//g, '_');
       
-      // FIX: Rzutowanie (as any), żeby TypeScript nie krzyczał o brak 'documentDirectory'
+      // Rzutowanie (as any), żeby TypeScript nie krzyczał o brak 'documentDirectory'
       const docDir = (FileSystem as any).documentDirectory; 
       
       if (docDir) {
@@ -99,7 +101,6 @@ export default function MistakeReviewScreen({ navigation }: Props) {
           }
         });
       } else {
-        // Fallback dla bezpieczeństwa (np. web)
          const cleanUri = uri.startsWith('/') ? uri.substring(1) : uri;
          setActiveImageUri(`${GITHUB_BASE}${cleanUri}`);
       }
@@ -193,12 +194,25 @@ export default function MistakeReviewScreen({ navigation }: Props) {
           <Text style={styles.questionCounter}>PYTANIE {currentIndex + 1} / {questions.length}</Text>
           <Text style={styles.questionText}>{currentQ.text}</Text>
 
-          {/* OBRAZEK */}
+          {/* --- OBSŁUGA MEDIÓW --- */}
+          
+          {/* 1. OBRAZEK */}
           {currentQ.media?.type === 'image' && activeImageUri && (
             <Image
               source={{ uri: activeImageUri }}
               style={styles.image}
               resizeMode="contain"
+            />
+          )}
+
+          {/* 2. WIDEO (NOWOŚĆ) */}
+          {currentQ.media?.type === 'video' && (
+            <Video
+              style={[styles.image, { backgroundColor: '#000' }]} // Używamy tego samego stylu + czarne tło
+              source={{ uri: GITHUB_BASE + currentQ.media.uri }}
+              useNativeControls
+              resizeMode={ResizeMode.CONTAIN}
+              isLooping
             />
           )}
         </View>
@@ -209,20 +223,14 @@ export default function MistakeReviewScreen({ navigation }: Props) {
             const isSelected = selectedAnswer === idx;
             const isCorrect = currentQ.correctAnswerIndex === idx;
             
-            // --- POPRAWKA: Dynamiczne style w tablicy ---
-            // Zamiast zmiennych, używamy logiki bezpośrednio w propsie style=[]
-            
             return (
               <TouchableOpacity
                 key={idx}
                 style={[
                   styles.answerWrapper,
-                  // Stan zaznaczenia (niebieski)
                   isSelected && styles.answerWrapperSelected,
-                  // Stan po sprawdzeniu (zielony/czerwony)
                   isAnswerChecked && isCorrect && styles.answerWrapperCorrect,
                   isAnswerChecked && isSelected && !isCorrect && styles.answerWrapperWrong,
-                  // Stan wyszarzenia (pozostałe)
                   isAnswerChecked && !isCorrect && !isSelected && styles.answerWrapperDimmed
                 ]}
                 onPress={() => handleAnswer(idx)}
@@ -231,7 +239,6 @@ export default function MistakeReviewScreen({ navigation }: Props) {
               >
                 <View style={[
                     styles.letterContainer,
-                    // Kółko robi się białe na kolorowym tle
                     isAnswerChecked && (isCorrect || (isSelected && !isCorrect)) && styles.letterContainerWhite
                 ]}>
                   <Text style={[
@@ -272,7 +279,6 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F4F6F8' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
   
-  // Header
   header: { 
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', 
     paddingHorizontal: 20, paddingVertical: 15, backgroundColor: '#fff', 
@@ -288,16 +294,16 @@ const styles = StyleSheet.create({
 
   scrollContent: { padding: 16, paddingBottom: 80 },
 
-  // Karta Pytania
   card: {
     backgroundColor: '#fff', borderRadius: 16, padding: 20, marginBottom: 20,
     shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 8, elevation: 4
   },
   questionCounter: { fontSize: 12, fontWeight: 'bold', color: '#9E9E9E', marginBottom: 8, letterSpacing: 1 },
   questionText: { fontSize: 18, fontWeight: '600', color: '#212121', lineHeight: 26 },
+  
+  // Ten styl służy teraz i dla Image i dla Video
   image: { width: '100%', height: 200, marginTop: 15, borderRadius: 8, backgroundColor: '#FAFAFA' },
 
-  // Odpowiedzi
   answersContainer: { gap: 12 },
   answerWrapper: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff',
@@ -321,7 +327,6 @@ const styles = StyleSheet.create({
   answerText: { fontSize: 16, fontWeight: '500', color: '#424242', flex: 1 },
   answerTextWhite: { fontSize: 16, fontWeight: '600', color: '#fff', flex: 1 },
 
-  // Empty State & Status
   emptyTitle: { fontSize: 24, fontWeight: 'bold', marginTop: 20, color: '#333' },
   emptyText: { fontSize: 16, color: '#757575', marginTop: 10, marginBottom: 30 },
   backBtn: { backgroundColor: '#212121', paddingHorizontal: 30, paddingVertical: 14, borderRadius: 30 },
