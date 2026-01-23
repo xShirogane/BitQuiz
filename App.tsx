@@ -4,27 +4,21 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-
-// --- IMPORTY KONTEKSTU ---
 import { AuthProvider } from './src/context/AuthContext';
-
-// --- IMPORTY EKRANÓW ---
 import ExamScreen, { Question } from './src/screens/ExamScreen';
 import ResultScreen from './src/screens/ResultScreen';
 import QualificationScreen from './src/screens/QualificationScreen';
 import ModeSelectionScreen from './src/screens/ModeSelectionScreen';
 import TrainingScreen from './src/screens/TrainingScreen';
-
 import ProfileScreen from './src/screens/ProfileScreen';
 import OneLifeScreen from './src/screens/OneLifeScreen';
 import MultiplayerSetupScreen from './src/screens/MultiplayerSetupScreen';
 import MultiplayerGameScreen from './src/screens/MultiplayerGameScreen';
-
 import StatisticsScreen from './src/screens/StatisticsScreen';
-
 import ExamReviewScreen from './src/screens/ExamReviewScreen';
-
 import MistakeReviewScreen from './src/screens/MistakeReviewScreen';
+import SettingsScreen from './src/screens/SettingsScreen';
+import ContactScreen from './src/screens/ContactScreen';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -125,6 +119,7 @@ export default function App() {
         >
           <Stack.Screen name="Qualifications" component={QualificationScreen} options={{ headerShown: false }} />
           <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: 'Mój Profil' }} />
+          <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Ustawienia' }} />
           <Stack.Screen name="ModeSelection" component={ModeSelectionScreen} options={{ title: 'Wybór trybu' }} />
           <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
           <Stack.Screen name="Exam" component={ExamScreen} options={{ title: 'Egzamin', headerBackVisible: false }} />
@@ -136,6 +131,7 @@ export default function App() {
           <Stack.Screen name="Statistics" component={StatisticsScreen} options={{ title: 'Twoje Statystyki 📊' }} />
           <Stack.Screen name="ExamReview" component={ExamReviewScreen} options={{ title: 'Szczegóły testu', presentation: 'modal' }} />
           <Stack.Screen name="MistakeReview" component={MistakeReviewScreen} options={{ title: 'Trener Błędów' }} />
+          <Stack.Screen name="Contact" component={ContactScreen} options={{ title: 'Kontakt' }} />
         </Stack.Navigator>
 
       </NavigationContainer>
