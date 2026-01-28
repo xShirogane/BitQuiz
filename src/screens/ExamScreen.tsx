@@ -2,17 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, ActivityIndicator } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { cacheImages } from '../utils/offlineManager';
-import * as FileSystem from 'expo-file-system/legacy';
-// Import przeglądarki zdjęć
+// 👇 PRZYWRÓCONO IMPORT LEGACY (TO NAPRAWIA ZDJĘCIA)
+import * as FileSystem from 'expo-file-system/legacy'; 
 import ImageView from "react-native-image-viewing";
-// 1. ZMIANA: Nowa biblioteka wideo
 import { useVideoPlayer, VideoView } from 'expo-video';
 
-// Pamiętaj o ukośniku na końcu i 'raw' w adresie!
 const GITHUB_IMAGE_BASE_URL = 'https://raw.githubusercontent.com/xShirogane/BitQuiz-Assets/main/';
 
-// 2. KOMPONENT POMOCNICZY DO WIDEO
 const QuestionVideo = ({ uri }: { uri: string }) => {
   const player = useVideoPlayer(uri, player => {
     player.loop = true;
@@ -25,9 +23,7 @@ const QuestionVideo = ({ uri }: { uri: string }) => {
         style={styles.videoView} 
         player={player} 
         contentFit="contain"
-        // USUNIĘTO: allowsFullscreen (bo generowało błąd)
-        // USUNIĘTO: allowsPictureInPicture (opcjonalne, też można usunąć dla czystości)
-        nativeControls={true} // To zapewnia systemowe przyciski (play, pauza, fullscreen)
+        nativeControls={true} 
       />
     </View>
   );
@@ -44,17 +40,14 @@ export interface Question {
 export default function ExamScreen({ route, navigation }: any) {
   const { apiUrl, limit, time } = route.params; 
   const { userProfile } = useAuth();
+  const { theme } = useTheme(); 
   
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [userAnswers, setUserAnswers] = useState<(number | null)[]>([]);
   const [error, setError] = useState<string | null>(null);
-  
-  // Stan widoczności galerii (zoomowania)
   const [isGalleryVisible, setIsGalleryVisible] = useState(false);
-
-  // Stan dla licznika czasu
   const [timeLeft, setTimeLeft] = useState((time || 60) * 60); 
 
   useEffect(() => {
@@ -63,7 +56,6 @@ export default function ExamScreen({ route, navigation }: any) {
 
   useEffect(() => {
     if (loading || error) return; 
-
     const timerId = setInterval(() => {
       setTimeLeft((prevTime) => {
         if (prevTime <= 1) {
@@ -73,7 +65,6 @@ export default function ExamScreen({ route, navigation }: any) {
         return prevTime - 1;
       });
     }, 1000);
-
     return () => clearInterval(timerId);
   }, [loading, error]);
 
@@ -91,13 +82,11 @@ export default function ExamScreen({ route, navigation }: any) {
 
  const fetchQuestions = async () => {
     const cacheKey = `quiz_cache_${apiUrl}`;
-
     try {
       const response = await fetch(apiUrl);
       if (!response.ok) throw new Error('Błąd sieci');
       
       const rawQuestions: Question[] = await response.json();
-      // Cache'ujemy obrazki (funkcja z offlineManager)
       const questionsWithImages = await cacheImages(rawQuestions);
       
       try {
@@ -105,18 +94,14 @@ export default function ExamScreen({ route, navigation }: any) {
       } catch (cacheErr) {
         console.warn('Nie udało się zapisać cache:', cacheErr);
       }
-
       processQuestions(questionsWithImages);
-
     } catch (err) {
       console.log('Błąd sieci, próba trybu offline...', err);
-
       if (!userProfile?.isPro) {
         setError('Brak połączenia z internetem. Tryb Offline jest dostępny tylko w wersji PRO 👑.');
         setLoading(false);
         return;
       }
-
       try {
         const cachedData = await AsyncStorage.getItem(cacheKey);
         if (cachedData) {
@@ -136,13 +121,11 @@ export default function ExamScreen({ route, navigation }: any) {
   const processQuestions = (allQuestions: Question[]) => {
     const questionsToDraw = limit || 40;
     const shuffled = allQuestions.sort(() => 0.5 - Math.random()).slice(0, questionsToDraw);
-    
     if (shuffled.length === 0) {
       setError('Pobrana baza pytań jest pusta.');
       setLoading(false);
       return;
     }
-
     setQuestions(shuffled);
     setUserAnswers(new Array(shuffled.length).fill(null));
     setLoading(false);
@@ -177,8 +160,7 @@ export default function ExamScreen({ route, navigation }: any) {
     });
 
     const { examData } = route.params; 
-
-    navigation.navigate('Result', {
+    navigation.replace('Result', {
       score: score,
       total: questions.length,
       questions: questions,
@@ -188,20 +170,20 @@ export default function ExamScreen({ route, navigation }: any) {
     });
   };
 
-  if (loading) return <View style={styles.center}><ActivityIndicator size="large" color="#007AFF" /></View>;
+  if (loading) return <View style={[styles.center, { backgroundColor: theme.background }]}><ActivityIndicator size="large" color={theme.primary} /></View>;
   
   if (error) return (
-    <View style={styles.center}>
-      <Text style={styles.errorText}>{error}</Text>
-      <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-        <Text style={styles.backButtonText}>Wróć</Text>
+    <View style={[styles.center, { backgroundColor: theme.background }]}>
+      <Text style={[styles.errorText, { color: theme.danger }]}>{error}</Text>
+      <TouchableOpacity style={[styles.backButton, { backgroundColor: theme.card }]} onPress={() => navigation.goBack()}>
+        <Text style={[styles.backButtonText, { color: theme.text }]}>Wróć</Text>
       </TouchableOpacity>
     </View>
   );
 
   const currentQuestion = questions[currentIndex];
   
-  // Logika adresu obrazka (obsługa offline)
+  // Logika adresu obrazka
   let imageSource = null;
   if (currentQuestion.media?.type === 'image') {
     imageSource = {
@@ -212,38 +194,34 @@ export default function ExamScreen({ route, navigation }: any) {
   }
   
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <ScrollView contentContainerStyle={[styles.container, { backgroundColor: theme.background }]}>
       
       <View style={styles.topBar}>
         <View style={styles.progressInfo}>
-          <Text style={styles.progressText}>Pytanie {currentIndex + 1} / {questions.length}</Text>
+          <Text style={[styles.progressText, { color: theme.subText }]}>Pytanie {currentIndex + 1} / {questions.length}</Text>
         </View>
-        
-        <View style={styles.timerContainer}>
-          <Text style={[styles.timerText, timeLeft < 60 && styles.timerWarning]}>
+        <View style={[styles.timerContainer, { backgroundColor: theme.card }]}>
+          <Text style={[styles.timerText, { color: theme.text }, timeLeft < 60 && styles.timerWarning]}>
             ⏱ {formatTime(timeLeft)}
           </Text>
         </View>
       </View>
 
-      <View style={styles.progressBar}>
-        <View style={[styles.progressFill, { width: `${((currentIndex + 1) / questions.length) * 100}%` }]} />
+      <View style={[styles.progressBar, { backgroundColor: theme.border }]}>
+        <View style={[styles.progressFill, { backgroundColor: theme.primary, width: `${((currentIndex + 1) / questions.length) * 100}%` }]} />
       </View>
 
-      <Text style={styles.questionText}>{currentQuestion.text}</Text>
+      <Text style={[styles.questionText, { color: theme.text }]}>{currentQuestion.text}</Text>
 
-      {/* --- SEKCJA MEDIÓW --- */}
-      
-      {/* 1. OBRAZKI (z zoomem) */}
       {imageSource && (
         <>
             <TouchableOpacity onPress={() => setIsGalleryVisible(true)} activeOpacity={0.9}>
                 <Image
                     source={imageSource}
-                    style={styles.mediaFrame}
+                    style={[styles.mediaFrame, { borderColor: theme.border, backgroundColor: theme.card }]}
                     resizeMode="contain"
                 />
-                <Text style={styles.zoomHint}>🔍 Kliknij, aby powiększyć</Text>
+                <Text style={[styles.zoomHint, { color: theme.primary }]}>🔍 Kliknij, aby powiększyć</Text>
             </TouchableOpacity>
 
             <ImageView
@@ -255,7 +233,6 @@ export default function ExamScreen({ route, navigation }: any) {
         </>
       )}
 
-      {/* 2. WIDEO (nowe) */}
       {currentQuestion.media?.type === 'video' && (
         <View style={{ marginBottom: 20 }}>
           <QuestionVideo uri={GITHUB_IMAGE_BASE_URL + currentQuestion.media.uri} />
@@ -265,14 +242,19 @@ export default function ExamScreen({ route, navigation }: any) {
       <View style={styles.answersContainer}>
         {currentQuestion.answers.map((ans, idx) => {
           const isSelected = userAnswers[currentIndex] === idx;
+          const bgColor = isSelected ? theme.primary : theme.card;
+          const borderColor = isSelected ? theme.primary : theme.border;
+          const textColor = isSelected ? '#fff' : theme.text;
+          const letterColor = isSelected ? '#fff' : theme.primary;
+
           return (
             <TouchableOpacity 
               key={idx} 
-              style={[styles.answerButton, isSelected && styles.selectedAnswer]} 
+              style={[styles.answerButton, { backgroundColor: bgColor, borderColor: borderColor }]} 
               onPress={() => handleAnswer(idx)}
             >
-              <Text style={[styles.answerLetter, isSelected && styles.selectedText]}>{['A','B','C','D'][idx]}.</Text>
-              <Text style={[styles.answerText, isSelected && styles.selectedText]}>{ans}</Text>
+              <Text style={[styles.answerLetter, { color: letterColor }]}>{['A','B','C','D'][idx]}.</Text>
+              <Text style={[styles.answerText, { color: textColor }]}>{ans}</Text>
             </TouchableOpacity>
           );
         })}
@@ -280,14 +262,17 @@ export default function ExamScreen({ route, navigation }: any) {
 
       <View style={styles.navButtons}>
         <TouchableOpacity 
-          style={[styles.navButton, styles.secondaryButton]} 
+          style={[styles.navButton, styles.secondaryButton, { backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }]} 
           onPress={prevQuestion}
           disabled={currentIndex === 0}
         >
-          <Text style={styles.navButtonText}>Poprzednie</Text>
+          <Text style={[styles.navButtonText, { color: theme.text }]}>Poprzednie</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.navButton} onPress={nextQuestion}>
+        <TouchableOpacity 
+            style={[styles.navButton, { backgroundColor: theme.primary }]} 
+            onPress={nextQuestion}
+        >
           <Text style={styles.navButtonText}>
             {currentIndex === questions.length - 1 ? 'Zakończ' : 'Następne'}
           </Text>
@@ -299,53 +284,30 @@ export default function ExamScreen({ route, navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 20, paddingBottom: 50, backgroundColor: '#fff', flexGrow: 1 },
+  container: { padding: 20, paddingBottom: 50, flexGrow: 1 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
-  errorText: { color: 'red', fontSize: 16, textAlign: 'center', marginBottom: 20 },
-  backButton: { backgroundColor: '#333', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8 },
-  backButtonText: { color: '#fff', fontWeight: 'bold' },
-
+  errorText: { fontSize: 16, textAlign: 'center', marginBottom: 20 },
+  backButton: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8 },
+  backButtonText: { fontWeight: 'bold' },
   topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   progressInfo: { flex: 1 },
-  progressText: { fontSize: 14, color: '#666' },
-  
-  timerContainer: { backgroundColor: '#F0F0F0', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
-  timerText: { fontWeight: 'bold', fontSize: 16, color: '#333', fontVariant: ['tabular-nums'] },
+  progressText: { fontSize: 14 },
+  timerContainer: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
+  timerText: { fontWeight: 'bold', fontSize: 16, fontVariant: ['tabular-nums'] },
   timerWarning: { color: 'red' },
-
-  progressBar: { height: 6, backgroundColor: '#eee', borderRadius: 3, overflow: 'hidden', marginBottom: 20 },
-  progressFill: { height: '100%', backgroundColor: '#007AFF' },
-
-  questionText: { fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 20, lineHeight: 26 },
-  
-  mediaFrame: { width: '100%', height: 250, backgroundColor: '#f9f9f9', borderRadius: 8, borderWidth: 1, borderColor: '#eee' },
-  
-  // Style dla nowego wideo
-  videoContainer: {
-    width: '100%',
-    height: 250,
-    backgroundColor: '#ffffff',
-    borderRadius: 8,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#eee'
-  },
-  videoView: {
-    width: '100%',
-    height: '100%'
-  },
-  
-  zoomHint: { textAlign: 'center', color: '#007AFF', fontSize: 12, marginBottom: 20, marginTop: 5 },
-
+  progressBar: { height: 6, borderRadius: 3, overflow: 'hidden', marginBottom: 20 },
+  progressFill: { height: '100%' },
+  questionText: { fontSize: 18, fontWeight: 'bold', marginBottom: 20, lineHeight: 26 },
+  mediaFrame: { width: '100%', height: 250, borderRadius: 8, borderWidth: 1 },
+  videoContainer: { width: '100%', height: 250, backgroundColor: '#000', borderRadius: 8, overflow: 'hidden', borderWidth: 1, borderColor: '#333' },
+  videoView: { width: '100%', height: '100%' },
+  zoomHint: { textAlign: 'center', fontSize: 12, marginBottom: 20, marginTop: 5 },
   answersContainer: { gap: 12, marginBottom: 30 },
-  answerButton: { flexDirection: 'row', padding: 16, borderRadius: 12, backgroundColor: '#fff', borderWidth: 1, borderColor: '#ddd', alignItems: 'center' },
-  selectedAnswer: { backgroundColor: '#007AFF', borderColor: '#007AFF' },
-  answerLetter: { fontSize: 16, fontWeight: 'bold', color: '#007AFF', marginRight: 12 },
-  answerText: { fontSize: 16, color: '#333', flex: 1 },
-  selectedText: { color: '#fff' },
-
+  answerButton: { flexDirection: 'row', padding: 16, borderRadius: 12, borderWidth: 1, alignItems: 'center' },
+  answerLetter: { fontSize: 16, fontWeight: 'bold', marginRight: 12 },
+  answerText: { fontSize: 16, flex: 1 },
   navButtons: { flexDirection: 'row', justifyContent: 'space-between', gap: 15 },
-  navButton: { flex: 1, backgroundColor: '#007AFF', padding: 15, borderRadius: 10, alignItems: 'center' },
-  secondaryButton: { backgroundColor: '#6c757d' },
-  navButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
+  navButton: { flex: 1, padding: 15, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  secondaryButton: { }, 
+  navButtonText: { fontWeight: 'bold', fontSize: 16, color: '#fff' },
 });

@@ -11,6 +11,7 @@ export interface UserProfile {
   isPro: boolean;
   createdAt?: any;
   favoriteSchool?: string;
+  photoURL?: string;
 }
 
 interface AuthContextProps {

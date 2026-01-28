@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { db } from '../config/firebase';
 import { collection, query, orderBy, getDocs, where, limit } from 'firebase/firestore';
 import { useNavigation } from '@react-navigation/native';
@@ -14,6 +15,7 @@ interface Props {
 
 export default function QualificationStatsCard({ examId, examIds, title, schoolId }: Props) {
   const { user, userProfile, loading: authLoading } = useAuth();
+  const { theme } = useTheme();
   const navigation = useNavigation<any>();
   
   const [loading, setLoading] = useState(true);
@@ -34,19 +36,14 @@ export default function QualificationStatsCard({ examId, examIds, title, schoolI
       setLoading(true);
       try {
         const historyRef = collection(db, 'users', user.uid, 'history');
-        
-        // Pobieramy historię dla danych egzaminów
         const q = query(
           historyRef, 
           where('examId', 'in', targetExamIds), 
           orderBy('date', 'desc'),
-          limit(100) // Pobieramy więcej, bo będziemy filtrować
+          limit(100) 
         );
 
         const snapshot = await getDocs(q);
-        
-        // --- FILTROWANIE ---
-        // Bierzemy tylko te wyniki, które miały dokładnie 40 pytań (Egzamin Zawodowy)
         const data = snapshot.docs
           .map(doc => doc.data())
           .filter((item: any) => item.total === 40);
@@ -66,7 +63,6 @@ export default function QualificationStatsCard({ examId, examIds, title, schoolI
             passed: passedCount
           });
         } else {
-          // Liczymy serię tylko dla pełnych egzaminów (40 pytań)
           let currentStreak = 0;
           for (const item of data) {
             if ((item.percentage || 0) >= 50) currentStreak++;
@@ -89,7 +85,7 @@ export default function QualificationStatsCard({ examId, examIds, title, schoolI
   if (loading || authLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="small" color="#007AFF" />
+        <ActivityIndicator size="small" color={theme.primary} />
       </View>
     );
   }
@@ -102,82 +98,79 @@ export default function QualificationStatsCard({ examId, examIds, title, schoolI
     });
   };
 
-  // --- WIDOK DLA PRO ---
   if (userProfile?.isPro) {
     return (
-      <TouchableOpacity style={styles.container} onPress={handlePress}>
+      <TouchableOpacity 
+        style={[styles.container, { backgroundColor: theme.card }]}
+        onPress={handlePress}
+      >
         <View style={styles.headerRow}>
-          <Text style={styles.headerTitle}>{displayTitle} 📊</Text>
-          <Text style={styles.seeMore}>Szczegóły &gt;</Text>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>{displayTitle} 📊</Text>
+          <Text style={[styles.seeMore, { color: theme.primary }]}>Szczegóły &gt;</Text>
         </View>
         
         <View style={styles.row}>
           <View style={styles.statItem}>
-            <Text style={styles.value}>{stats.total}</Text>
-            <Text style={styles.label}>Egzaminy</Text>
+            <Text style={[styles.value, { color: theme.text }]}>{stats.total}</Text>
+            <Text style={[styles.label, { color: theme.subText }]}>Egzaminy</Text>
           </View>
-          <View style={[styles.separator, { backgroundColor: '#ddd' }]} />
+          
+          <View style={[styles.separator, { backgroundColor: theme.border }]} />
+          
           <View style={styles.statItem}>
-            <Text style={[styles.value, { color: stats.avgScore >= 50 ? '#34C759' : '#FF3B30' }]}>
+            <Text style={[styles.value, { color: stats.avgScore >= 50 ? '#34C759' : theme.danger }]}>
               {stats.avgScore}%
             </Text>
-            <Text style={styles.label}>Średnia</Text>
+            <Text style={[styles.label, { color: theme.subText }]}>Średnia</Text>
           </View>
-          <View style={[styles.separator, { backgroundColor: '#ddd' }]} />
+          
+          <View style={[styles.separator, { backgroundColor: theme.border }]} />
+          
           <View style={styles.statItem}>
-            <Text style={styles.value}>{stats.passed}</Text>
-            <Text style={styles.label}>Zaliczone</Text>
+            <Text style={[styles.value, { color: theme.text }]}>{stats.passed}</Text>
+            <Text style={[styles.label, { color: theme.subText }]}>Zaliczone</Text>
           </View>
         </View>
       </TouchableOpacity>
     );
   }
 
-  // --- WIDOK DLA FREE ---
   return (
-    <TouchableOpacity style={[styles.container, styles.freeContainer]} onPress={handlePress}>
+    <TouchableOpacity 
+      style={[styles.container, styles.freeContainer, { backgroundColor: theme.card }]}
+      onPress={handlePress}
+    >
        <View style={styles.headerRowFree}>
-          <Text style={styles.headerTitleFree}>{displayTitle}</Text>
+          <Text style={[styles.headerTitleFree, { color: theme.subText }]}>{displayTitle}</Text>
       </View>
       <View style={styles.streakContent}>
         <Text style={styles.fireIcon}>🔥</Text>
         <View>
           <Text style={styles.streakValue}>{streak}</Text>
-          <Text style={styles.streakLabel}>Twoja seria zaliczeń (Egzaminy)</Text>
+          <Text style={[styles.streakLabel, { color: theme.subText }]}>Twoja seria zaliczeń (Egzaminy)</Text>
         </View>
-        <Text style={{ marginLeft: 'auto', color: '#ccc', fontSize: 20 }}>&gt;</Text>
+        <Text style={{ marginLeft: 'auto', color: theme.border, fontSize: 20 }}>&gt;</Text>
       </View>
     </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 15,
-    marginBottom: 20,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-  },
+  container: { borderRadius: 16, padding: 15, marginBottom: 20, elevation: 3, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } },
   loadingContainer: { height: 80, justifyContent: 'center', alignItems: 'center' },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 15 },
-  headerTitle: { fontWeight: 'bold', color: '#333', fontSize: 16 },
-  seeMore: { color: '#007AFF', fontSize: 12 },
+  headerTitle: { fontWeight: 'bold', fontSize: 16 },
+  seeMore: { fontSize: 12 },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   statItem: { flex: 1, alignItems: 'center' },
-  value: { fontSize: 20, fontWeight: 'bold', color: '#333' },
-  label: { fontSize: 12, color: '#666', marginTop: 4 },
+  value: { fontSize: 20, fontWeight: 'bold' },
+  label: { fontSize: 12, marginTop: 4 },
   separator: { width: 1, height: 30 },
-  
   freeContainer: { borderLeftWidth: 4, borderLeftColor: '#FF9500' },
   headerRowFree: { marginBottom: 5 },
-  headerTitleFree: { fontSize: 12, color: '#888', fontWeight: '600', textTransform: 'uppercase' },
+  headerTitleFree: { fontSize: 12, fontWeight: '600', textTransform: 'uppercase' },
   streakContent: { flexDirection: 'row', alignItems: 'center' },
   fireIcon: { fontSize: 32, marginRight: 10 },
   streakValue: { fontSize: 24, fontWeight: 'bold', color: '#FF9500' },
-  streakLabel: { fontSize: 12, color: '#666' },
+  streakLabel: { fontSize: 12 },
 });
