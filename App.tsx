@@ -24,6 +24,8 @@ import ExamReviewScreen from './src/screens/ExamReviewScreen';
 import MistakeReviewScreen from './src/screens/MistakeReviewScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import ContactScreen from './src/screens/ContactScreen';
+import QuickReviewScreen from './src/screens/QuickReviewScreen';
+
 
 SplashScreen.preventAutoHideAsync();
 
@@ -55,6 +57,7 @@ export type RootStackParamList = {
   Statistics: { examId?: string, title?: string }; 
   ExamReview: { questions: any[], userAnswers: any[], score: number, total: number }; 
   MistakeReview: undefined;
+  QuickReview: undefined
   Settings: undefined;
   Contact: undefined;
 };
@@ -144,6 +147,7 @@ const AppContent = () => {
         <Stack.Screen name="ExamReview" component={ExamReviewScreen} options={{ title: 'Szczegóły testu', presentation: 'modal' }} />
         <Stack.Screen name="MistakeReview" component={MistakeReviewScreen} options={{ title: 'Trener Błędów' }} />
         <Stack.Screen name="Contact" component={ContactScreen} options={{ title: 'Kontakt' }} />
+        <Stack.Screen name="QuickReview" component={QuickReviewScreen} options={{ title: 'Szybka Powtórka ⚡' }} />
       </Stack.Navigator>
     </NavigationContainer>
   );
