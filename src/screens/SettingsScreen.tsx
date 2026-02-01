@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  View, Text, StyleSheet, TouchableOpacity, Switch, Alert, ScrollView, Platform 
+  View, Text, StyleSheet, TouchableOpacity, Switch, Alert, ScrollView, Platform, Modal, TextInput, KeyboardAvoidingView 
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -8,12 +8,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { sendPasswordResetEmail, deleteUser } from 'firebase/auth';
+// ZMIANA: Dodano verifyBeforeUpdateEmail zamiast updateEmail (lub obok)
+import { sendPasswordResetEmail, deleteUser, verifyBeforeUpdateEmail, updateEmail } from 'firebase/auth'; 
 import { auth, db } from '../config/firebase';
-import { doc, deleteDoc } from 'firebase/firestore';
+import { doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { registerForPushNotificationsAsync, scheduleExamReminder, cancelAllNotifications } from '../utils/notifications';
 
-// Definicja dni tygodnia
+// --- DEFINICJE DNI TYGODNIA ---
 const DAYS = [
   { id: 2, label: 'Pn' },
   { id: 3, label: 'Wt' },
@@ -47,6 +48,12 @@ export default function SettingsScreen() {
 
   const [showPicker, setShowPicker] = useState(false);
   const [pickerMode, setPickerMode] = useState<'global' | number>('global');
+
+  // --- STAN EDYCJI KONTA (MODAL) ---
+  const [modalVisible, setModalVisible] = useState(false);
+  const [editMode, setEditMode] = useState<'username' | 'email' | null>(null);
+  const [inputValue, setInputValue] = useState('');
+  const [loading, setLoading] = useState(false);
 
   // --- ŁADOWANIE I ZAPISYWANIE ---
   useEffect(() => {
@@ -99,12 +106,11 @@ export default function SettingsScreen() {
       }
     } catch (e: any) {
       console.error("Błąd planowania:", e);
-      Alert.alert("Szczegóły błędu", e.message || "Nieznany błąd powiadomień");
       setReminders(prev => ({ ...prev, enabled: false }));
     }
   };
 
-  // --- HANDLERY ---
+  // --- HANDLERY POWIADOMIEŃ ---
   const toggleMasterSwitch = (value: boolean) => {
     saveAndSchedule({ ...reminders, enabled: value });
   };
@@ -147,26 +153,87 @@ export default function SettingsScreen() {
     toggleTheme();
   };
 
+  // --- HANDLERY ZARZĄDZANIA KONTEM ---
+  
+  const openEditModal = (mode: 'username' | 'email') => {
+    setEditMode(mode);
+    setInputValue(mode === 'username' ? userProfile?.username || '' : user?.email || '');
+    setModalVisible(true);
+  };
+
+  const handleSaveAccountChange = async () => {
+    if (!user || !inputValue.trim()) return;
+    setLoading(true);
+
+    try {
+      if (editMode === 'username') {
+        // Zmiana nazwy w Firestore
+        const userRef = doc(db, 'users', user.uid);
+        await updateDoc(userRef, { username: inputValue.trim() });
+        Alert.alert("Sukces", "Nazwa użytkownika została zmieniona.");
+        setModalVisible(false);
+
+      } else if (editMode === 'email') {
+        // Zmiana emaila - ZAKTUALIZOWANA LOGIKA
+        // Używamy verifyBeforeUpdateEmail zamiast updateEmail ze względu na zabezpieczenia Firebase
+        await verifyBeforeUpdateEmail(user, inputValue.trim());
+        
+        Alert.alert(
+          "Wysłano link weryfikacyjny", 
+          `Na adres ${inputValue.trim()} wysłaliśmy link potwierdzający. Kliknij go, aby sfinalizować zmianę emaila. Zmiana będzie widoczna po ponownym zalogowaniu.`
+        );
+        // Nie aktualizujemy Firestore tutaj, bo email technicznie jeszcze się nie zmienił (czeka na kliknięcie w link).
+        setModalVisible(false);
+      }
+      
+    } catch (error: any) {
+      if (error.code === 'auth/requires-recent-login') {
+        Alert.alert("Wymagane logowanie", "Aby wykonać tę operację, musisz się wylogować i zalogować ponownie dla bezpieczeństwa.");
+      } else if (error.code === 'auth/operation-not-allowed') {
+        Alert.alert("Błąd konfiguracji", "Operacja niedozwolona. Sprawdź ustawienia Firebase (Email Enumeration).");
+      } else {
+        Alert.alert("Błąd", error.message);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleChangePassword = async () => {
     if (!user?.email) return;
-    try {
-      await sendPasswordResetEmail(auth, user.email);
-      Alert.alert("Wysłano email", `Link wysłany na: ${user.email}`);
-    } catch (error: any) { Alert.alert("Błąd", error.message); }
+    Alert.alert("Zmiana hasła", `Czy chcesz wysłać link do resetowania hasła na ${user.email}?`, [
+      { text: "Anuluj", style: "cancel" },
+      { text: "Wyślij", onPress: async () => {
+          try {
+            await sendPasswordResetEmail(auth, user.email!);
+            Alert.alert("Wysłano", "Sprawdź swoją skrzynkę mailową.");
+          } catch (error: any) { Alert.alert("Błąd", error.message); }
+        }
+      }
+    ]);
   };
 
   const handleDeleteAccount = () => {
-    Alert.alert("Usuwanie konta", "Tej operacji nie można cofnąć.", [
+    Alert.alert("Usuwanie konta", "Tej operacji nie można cofnąć. Wszystkie Twoje dane zostaną utracone.", [
       { text: "Anuluj", style: "cancel" },
-      { text: "Usuń", style: "destructive", onPress: async () => {
+      { text: "Usuń trwale", style: "destructive", onPress: async () => {
         try {
-           if (user) { await deleteDoc(doc(db, 'users', user.uid)); await deleteUser(user); }
-        } catch (error: any) { Alert.alert("Błąd", error.message); }
+           if (user) { 
+             await deleteDoc(doc(db, 'users', user.uid)); 
+             await deleteUser(user); 
+           }
+        } catch (error: any) { 
+          if (error.code === 'auth/requires-recent-login') {
+            Alert.alert("Wymagane logowanie", "Aby usunąć konto, zaloguj się ponownie dla bezpieczeństwa.");
+          } else {
+            Alert.alert("Błąd", error.message); 
+          }
+        }
       }}
     ]);
   };
 
-  // --- KOMPONENTY UI ---
+  // --- UI KOMPONENTY ---
   const formatTime = (date: Date) => {
     if (!(date instanceof Date) || isNaN(date.getTime())) return "--:--";
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -190,142 +257,188 @@ export default function SettingsScreen() {
     </View>
   );
 
-  return (
-    <ScrollView contentContainerStyle={[styles.container, { backgroundColor: theme.background }]}>
-      
-      {/* SEKCJA APLIKACJA (Połączone Motyw + Przypomnienia) */}
-      <Text style={styles.sectionHeader}>Aplikacja</Text>
-      <View style={[styles.section, { backgroundColor: theme.card, paddingBottom: reminders.enabled ? 15 : 0 }]}>
-        
-        {/* 1. Motyw */}
-        <SettingItem icon="moon-outline" label="Ciemny motyw" value={isDark} onToggle={handleThemeToggle} />
-        
-        {/* Separator */}
-        <View style={{ height: 1, backgroundColor: isDark ? '#333' : '#f0f0f0', marginLeft: 0 }} />
-
-        {/* 2. Przypomnienia - Toggle */}
-        <SettingItem 
-          icon="notifications-outline" 
-          label="Przypomnienie o nauce" 
-          value={reminders.enabled} 
-          onToggle={toggleMasterSwitch} 
-        />
-
-        {/* 3. Przypomnienia - Konfiguracja (Rozwijana) */}
-        {reminders.enabled && (
-          <View style={styles.remindersContent}>
-            <View style={{ height: 1, backgroundColor: isDark ? '#333' : '#f0f0f0', marginBottom: 15 }} />
-            
-            <Text style={[styles.subLabel, { color: theme.subText }]}>DNI TYGODNIA:</Text>
-            <View style={styles.daysRow}>
-              {DAYS.map((day) => {
-                const isActive = reminders.days[day.id];
-                return (
-                  <TouchableOpacity 
-                    key={day.id} 
-                    onPress={() => toggleDay(day.id)}
-                    style={[
-                      styles.dayCircle, 
-                      { backgroundColor: isActive ? theme.primary : theme.background, borderColor: theme.border }
-                    ]}
-                  >
-                    <Text style={[styles.dayText, { color: isActive ? '#FFF' : theme.text }]}>{day.label}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
-            <View style={[styles.rowBetween, { marginTop: 20, marginBottom: 10 }]}>
-              <Text style={[styles.itemText, { color: theme.text, fontSize: 14 }]}>Wspólna godzina</Text>
-              <Switch 
-                value={reminders.useGlobalTime} 
-                onValueChange={toggleGlobalTimeMode}
-                trackColor={{ false: "#767577", true: theme.primary }}
-              />
-            </View>
-
-            {reminders.useGlobalTime ? (
-              <View style={styles.timeRow}>
-                <Text style={{ color: theme.text }}>Godzina:</Text>
-                {Platform.OS === 'android' ? (
-                  <TouchableOpacity onPress={() => openPicker('global')} style={styles.timeButton}>
-                    <Text style={{ color: theme.primary, fontWeight: 'bold' }}>{formatTime(reminders.globalTime)}</Text>
-                  </TouchableOpacity>
-                ) : (
-                  <DateTimePicker
-                    value={new Date(reminders.globalTime)}
-                    mode="time"
-                    display="default"
-                    onChange={handleTimeChange}
-                    themeVariant={isDark ? "dark" : "light"}
-                  />
-                )}
-              </View>
-            ) : (
-              <View style={{ marginTop: 5 }}>
-                 {DAYS.filter(d => reminders.days[d.id]).map(day => (
-                   <View key={day.id} style={styles.individualTimeRow}>
-                     <Text style={{ color: theme.text, width: 40 }}>{day.label}</Text>
-                     {Platform.OS === 'android' ? (
-                        <TouchableOpacity onPress={() => openPicker(day.id)} style={styles.timeButton}>
-                          <Text style={{ color: theme.primary }}>{formatTime(getDayTime(day.id))}</Text>
-                        </TouchableOpacity>
-                     ) : (
-                        <DateTimePicker
-                          value={new Date(getDayTime(day.id))}
-                          mode="time"
-                          display="compact"
-                          onChange={(e, d) => { setPickerMode(day.id); handleTimeChange(e, d); }}
-                          themeVariant={isDark ? "dark" : "light"}
-                          style={{ width: 100 }}
-                        />
-                     )}
-                   </View>
-                 ))}
-                 {DAYS.filter(d => reminders.days[d.id]).length === 0 && (
-                   <Text style={{ color: theme.subText, fontStyle: 'italic', fontSize: 12 }}>Wybierz dni powyżej, aby ustawić godziny.</Text>
-                 )}
-              </View>
-            )}
-          </View>
-        )}
+  const AccountActionItem = ({ icon, label, color, onPress, isDestructive = false }: any) => (
+    <TouchableOpacity style={styles.actionButton} onPress={onPress}>
+      <View style={styles.itemLeft}>
+        <Ionicons name={icon} size={24} color={color} style={styles.icon} />
+        <Text style={[styles.itemText, { color: color }]}>{label}</Text>
       </View>
+      {!isDestructive && <Ionicons name="create-outline" size={20} color={theme.subText} />}
+    </TouchableOpacity>
+  );
 
-      {/* MODAL PICKER DLA ANDROIDA */}
+  return (
+    <View style={{flex: 1, backgroundColor: theme.background}}>
+      <ScrollView contentContainerStyle={[styles.container, { backgroundColor: theme.background }]}>
+        
+        {/* SEKCJA APLIKACJA */}
+        <Text style={styles.sectionHeader}>Aplikacja</Text>
+        <View style={[styles.section, { backgroundColor: theme.card, paddingBottom: reminders.enabled ? 15 : 0 }]}>
+          <SettingItem icon="moon-outline" label="Ciemny motyw" value={isDark} onToggle={handleThemeToggle} />
+          <View style={{ height: 1, backgroundColor: isDark ? '#333' : '#f0f0f0', marginLeft: 0 }} />
+          <SettingItem icon="notifications-outline" label="Przypomnienie o nauce" value={reminders.enabled} onToggle={toggleMasterSwitch} />
+          
+          {reminders.enabled && (
+            <View style={styles.remindersContent}>
+              <View style={{ height: 1, backgroundColor: isDark ? '#333' : '#f0f0f0', marginBottom: 15 }} />
+              <Text style={[styles.subLabel, { color: theme.subText }]}>DNI TYGODNIA:</Text>
+              <View style={styles.daysRow}>
+                {DAYS.map((day) => {
+                  const isActive = reminders.days[day.id];
+                  return (
+                    <TouchableOpacity 
+                      key={day.id} 
+                      onPress={() => toggleDay(day.id)}
+                      style={[styles.dayCircle, { backgroundColor: isActive ? theme.primary : theme.background, borderColor: theme.border }]}
+                    >
+                      <Text style={[styles.dayText, { color: isActive ? '#FFF' : theme.text }]}>{day.label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              <View style={[styles.rowBetween, { marginTop: 20, marginBottom: 10 }]}>
+                <Text style={[styles.itemText, { color: theme.text, fontSize: 14 }]}>Wspólna godzina</Text>
+                <Switch value={reminders.useGlobalTime} onValueChange={toggleGlobalTimeMode} trackColor={{ false: "#767577", true: theme.primary }} />
+              </View>
+
+              {reminders.useGlobalTime ? (
+                <View style={styles.timeRow}>
+                  <Text style={{ color: theme.text }}>Godzina:</Text>
+                  {Platform.OS === 'android' ? (
+                    <TouchableOpacity onPress={() => openPicker('global')} style={styles.timeButton}>
+                      <Text style={{ color: theme.primary, fontWeight: 'bold' }}>{formatTime(reminders.globalTime)}</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <DateTimePicker
+                      value={new Date(reminders.globalTime)}
+                      mode="time" display="default" onChange={handleTimeChange}
+                      themeVariant={isDark ? "dark" : "light"}
+                    />
+                  )}
+                </View>
+              ) : (
+                <View style={{ marginTop: 5 }}>
+                  {DAYS.filter(d => reminders.days[d.id]).map(day => (
+                    <View key={day.id} style={styles.individualTimeRow}>
+                      <Text style={{ color: theme.text, width: 40 }}>{day.label}</Text>
+                      {Platform.OS === 'android' ? (
+                          <TouchableOpacity onPress={() => openPicker(day.id)} style={styles.timeButton}>
+                            <Text style={{ color: theme.primary }}>{formatTime(getDayTime(day.id))}</Text>
+                          </TouchableOpacity>
+                      ) : (
+                          <DateTimePicker
+                            value={new Date(getDayTime(day.id))}
+                            mode="time" display="compact" onChange={(e, d) => { setPickerMode(day.id); handleTimeChange(e, d); }}
+                            themeVariant={isDark ? "dark" : "light"} style={{ width: 100 }}
+                          />
+                      )}
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+          )}
+        </View>
+
+        {/* SEKCJA: ZARZĄDZANIE KONTEM */}
+        <Text style={styles.sectionHeader}>Zarządzanie kontem</Text>
+        <View style={[styles.section, { backgroundColor: theme.card }]}>
+          
+          <AccountActionItem 
+            icon="person-outline" 
+            label="Zmień nazwę użytkownika" 
+            color={theme.text} 
+            onPress={() => openEditModal('username')} 
+          />
+          <View style={{ height: 1, backgroundColor: isDark ? '#333' : '#f0f0f0' }} />
+
+          <AccountActionItem 
+            icon="mail-outline" 
+            label="Zmień adres email" 
+            color={theme.text} 
+            onPress={() => openEditModal('email')} 
+          />
+          <View style={{ height: 1, backgroundColor: isDark ? '#333' : '#f0f0f0' }} />
+
+          <AccountActionItem 
+            icon="key-outline" 
+            label="Zmień hasło" 
+            color={theme.text} 
+            onPress={handleChangePassword} 
+          />
+          <View style={{ height: 1, backgroundColor: isDark ? '#333' : '#f0f0f0' }} />
+
+          <AccountActionItem 
+            icon="trash-outline" 
+            label="Usuń konto" 
+            color={theme.danger} 
+            onPress={handleDeleteAccount}
+            isDestructive={true}
+          />
+        </View>
+
+        <Text style={styles.versionText}>BitQuiz v1.0.8</Text>
+      </ScrollView>
+
+      {/* MODAL DO EDYCJI DANYCH */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.modalOverlay}
+        >
+          <View style={[styles.modalContent, { backgroundColor: theme.card }]}>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>
+              {editMode === 'username' ? 'Zmień nazwę' : 'Zmień email'}
+            </Text>
+            
+            <Text style={[styles.modalSubtext, { color: theme.subText }]}>
+              {editMode === 'username' 
+                ? 'Wprowadź nową nazwę użytkownika, która będzie widoczna dla innych.' 
+                : 'Nowy email wymaga weryfikacji. Wyślemy link potwierdzający na podany adres.'}
+            </Text>
+
+            <TextInput 
+              style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.background }]}
+              value={inputValue}
+              onChangeText={setInputValue}
+              autoCapitalize="none"
+              placeholder={editMode === 'username' ? "Nowa nazwa" : "Nowy email"}
+              placeholderTextColor={theme.subText}
+            />
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity style={styles.modalButtonCancel} onPress={() => setModalVisible(false)}>
+                <Text style={{ color: theme.subText }}>Anuluj</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.modalButtonSave, { backgroundColor: theme.primary }]} 
+                onPress={handleSaveAccountChange}
+                disabled={loading}
+              >
+                <Text style={{ color: '#FFF', fontWeight: 'bold' }}>
+                  {loading ? 'Przetwarzanie...' : (editMode === 'email' ? 'Wyślij link' : 'Zapisz')}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* PICKER ANDROID */}
       {Platform.OS === 'android' && showPicker && (
         <DateTimePicker
           value={pickerMode === 'global' ? new Date(reminders.globalTime) : new Date(getDayTime(pickerMode as number))}
-          mode="time"
-          is24Hour={true}
-          display="default"
-          onChange={handleTimeChange}
+          mode="time" is24Hour={true} display="default" onChange={handleTimeChange}
         />
       )}
-
-      {/* SEKCJA BEZPIECZEŃSTWO */}
-      <Text style={styles.sectionHeader}>Bezpieczeństwo</Text>
-      <View style={[styles.section, { backgroundColor: theme.card }]}>
-        <TouchableOpacity style={styles.actionButton} onPress={handleChangePassword}>
-          <View style={styles.itemLeft}>
-            <Ionicons name="key-outline" size={24} color={theme.primary} style={styles.icon} />
-            <Text style={[styles.itemText, { color: theme.primary }]}>Zmień hasło</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color={theme.subText} />
-        </TouchableOpacity>
-      </View>
-
-      <Text style={styles.sectionHeader}>Strefa niebezpieczna</Text>
-      <View style={[styles.section, styles.dangerSection, { backgroundColor: theme.card }]}>
-        <TouchableOpacity style={styles.actionButton} onPress={handleDeleteAccount}>
-          <View style={styles.itemLeft}>
-            <Ionicons name="trash-outline" size={24} color={theme.danger} style={styles.icon} />
-            <Text style={[styles.itemText, { color: theme.danger }]}>Usuń konto</Text>
-          </View>
-        </TouchableOpacity>
-      </View>
-
-      <Text style={styles.versionText}>BitQuiz v1.0.6</Text>
-    </ScrollView>
+    </View>
   );
 }
 
@@ -333,7 +446,6 @@ const styles = StyleSheet.create({
   container: { padding: 20, paddingBottom: 50, flexGrow: 1 },
   sectionHeader: { fontSize: 14, fontWeight: '600', color: '#888', marginBottom: 10, marginLeft: 10, textTransform: 'uppercase', marginTop: 10 },
   section: { borderRadius: 12, overflow: 'hidden', marginBottom: 15, elevation: 2 },
-  dangerSection: { borderColor: '#FF3B30', borderWidth: 1 },
   itemContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 15 },
   actionButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 15 },
   itemLeft: { flexDirection: 'row', alignItems: 'center' },
@@ -348,5 +460,13 @@ const styles = StyleSheet.create({
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   timeRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 5 },
   timeButton: { padding: 8, backgroundColor: '#f0f0f0', borderRadius: 8 },
-  individualTimeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 0.5, borderBottomColor: '#eee' }
+  individualTimeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 0.5, borderBottomColor: '#eee' },
+  modalOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)' },
+  modalContent: { width: '85%', padding: 20, borderRadius: 15, elevation: 5 },
+  modalTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 10, textAlign: 'center' },
+  modalSubtext: { fontSize: 14, marginBottom: 20, textAlign: 'center' },
+  input: { borderWidth: 1, borderRadius: 8, padding: 10, fontSize: 16, marginBottom: 20 },
+  modalButtons: { flexDirection: 'row', justifyContent: 'space-between' },
+  modalButtonCancel: { padding: 10, flex: 1, alignItems: 'center' },
+  modalButtonSave: { padding: 10, flex: 1, alignItems: 'center', borderRadius: 8, marginLeft: 10 },
 });

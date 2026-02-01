@@ -6,12 +6,14 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext'; // <--- Importujemy motyw
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../config/firebase';
 
 export default function ContactScreen({ navigation }: any) {
   const { user } = useAuth();
+  const { theme, isDark } = useTheme(); // <--- Używamy hooka
   
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
@@ -49,7 +51,6 @@ export default function ContactScreen({ navigation }: any) {
 
       // 1. Jeśli jest plik, wyślij go do Storage
       if (attachment) {
-        // Konwersja URI na Blob (wymagane w React Native dla Firebase)
         const response = await fetch(attachment.uri);
         const blob = await response.blob();
         
@@ -86,60 +87,85 @@ export default function ContactScreen({ navigation }: any) {
     }
   };
 
+  // Style dynamiczne dla Inputów, aby uniknąć powtórzeń w JSX
+  const inputStyle = [
+    styles.input, 
+    { 
+      backgroundColor: theme.card, 
+      color: theme.text, 
+      borderColor: theme.border 
+    }
+  ];
+
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.header}>Formularz kontaktowy</Text>
-      <Text style={styles.subHeader}>Masz problem lub sugestię? Napisz do nas.</Text>
+    <ScrollView contentContainerStyle={[styles.container, { backgroundColor: theme.background }]}>
+      <Text style={[styles.header, { color: theme.text }]}>Formularz kontaktowy</Text>
+      <Text style={[styles.subHeader, { color: theme.subText }]}>Masz problem lub sugestię? Napisz do nas.</Text>
 
       {/* Email kontaktowy */}
-      <Text style={styles.label}>Twój Email do kontaktu</Text>
+      <Text style={[styles.label, { color: theme.text }]}>Twój Email do kontaktu</Text>
       <TextInput
-        style={styles.input}
+        style={inputStyle}
         value={contactEmail}
         onChangeText={setContactEmail}
         placeholder="np. jan@kowalski.pl"
+        placeholderTextColor={theme.subText}
         keyboardType="email-address"
         autoCapitalize="none"
+        keyboardAppearance={isDark ? 'dark' : 'light'}
       />
 
       {/* Temat */}
-      <Text style={styles.label}>Temat</Text>
+      <Text style={[styles.label, { color: theme.text }]}>Temat</Text>
       <TextInput
-        style={styles.input}
+        style={inputStyle}
         value={subject}
         onChangeText={setSubject}
         placeholder="Czego dotyczy zgłoszenie?"
+        placeholderTextColor={theme.subText}
+        keyboardAppearance={isDark ? 'dark' : 'light'}
       />
 
       {/* Treść */}
-      <Text style={styles.label}>Treść wiadomości</Text>
+      <Text style={[styles.label, { color: theme.text }]}>Treść wiadomości</Text>
       <TextInput
-        style={[styles.input, styles.textArea]}
+        style={[inputStyle, styles.textArea]}
         value={message}
         onChangeText={setMessage}
         placeholder="Opisz szczegółowo sprawę..."
+        placeholderTextColor={theme.subText}
         multiline
         numberOfLines={5}
         textAlignVertical="top"
+        keyboardAppearance={isDark ? 'dark' : 'light'}
       />
 
       {/* Załącznik */}
-      <Text style={styles.label}>Załącznik (opcjonalne)</Text>
-      <TouchableOpacity style={styles.attachButton} onPress={handlePickDocument}>
-        <Ionicons name={attachment ? "document-attach" : "attach"} size={24} color="#555" />
-        <Text style={styles.attachText}>
+      <Text style={[styles.label, { color: theme.text }]}>Załącznik (opcjonalne)</Text>
+      <TouchableOpacity 
+        style={[
+          styles.attachButton, 
+          { 
+            backgroundColor: isDark ? '#1A1A1A' : '#E8EAF6', 
+            borderColor: isDark ? '#444' : '#9FA8DA' 
+          }
+        ]} 
+        onPress={handlePickDocument}
+      >
+        <Ionicons name={attachment ? "document-attach" : "attach"} size={24} color={theme.primary} />
+        <Text style={[styles.attachText, { color: theme.primary }]}>
           {attachment ? attachment.name : "Dodaj zrzut ekranu lub plik"}
         </Text>
         {attachment && (
             <TouchableOpacity onPress={() => setAttachment(null)} style={{marginLeft: 10}}>
-                <Ionicons name="close-circle" size={20} color="red" />
+                <Ionicons name="close-circle" size={20} color={theme.danger} />
             </TouchableOpacity>
         )}
       </TouchableOpacity>
 
       {/* Przycisk Wyślij */}
       <TouchableOpacity 
-        style={[styles.sendButton, sending && styles.buttonDisabled]} 
+        style={[styles.sendButton, { backgroundColor: theme.primary }, sending && styles.buttonDisabled]} 
         onPress={handleSend}
         disabled={sending}
       >
@@ -158,18 +184,18 @@ export default function ContactScreen({ navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 20, backgroundColor: '#F5F7FA', flexGrow: 1 },
-  header: { fontSize: 28, fontWeight: 'bold', color: '#333', marginBottom: 5 },
-  subHeader: { fontSize: 16, color: '#666', marginBottom: 25 },
+  container: { padding: 20, flexGrow: 1 },
+  header: { fontSize: 28, fontWeight: 'bold', marginBottom: 5 },
+  subHeader: { fontSize: 16, marginBottom: 25 },
   
-  label: { fontSize: 14, fontWeight: '600', color: '#444', marginBottom: 8, marginLeft: 4 },
-  input: { backgroundColor: '#fff', padding: 15, borderRadius: 12, marginBottom: 20, borderWidth: 1, borderColor: '#E0E0E0', fontSize: 16 },
-  textArea: { height: 120 },
+  label: { fontSize: 14, fontWeight: '600', marginBottom: 8, marginLeft: 4 },
+  input: { padding: 15, borderRadius: 12, marginBottom: 20, borderWidth: 1, fontSize: 16 },
+  textArea: { height: 120, paddingTop: 12 }, // paddingTop poprawia wygląd tekstu w multiline na Androidzie
   
-  attachButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#E8EAF6', padding: 15, borderRadius: 12, marginBottom: 30, borderStyle: 'dashed', borderWidth: 1, borderColor: '#9FA8DA' },
-  attachText: { marginLeft: 10, color: '#5C6BC0', fontWeight: '500', flex: 1 },
+  attachButton: { flexDirection: 'row', alignItems: 'center', padding: 15, borderRadius: 12, marginBottom: 30, borderStyle: 'dashed', borderWidth: 1 },
+  attachText: { marginLeft: 10, fontWeight: '500', flex: 1 },
 
-  sendButton: { flexDirection: 'row', backgroundColor: '#007AFF', padding: 18, borderRadius: 15, alignItems: 'center', justifyContent: 'center', shadowColor: "#007AFF", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5, elevation: 5 },
-  buttonDisabled: { backgroundColor: '#A0A0A0' },
+  sendButton: { flexDirection: 'row', padding: 18, borderRadius: 15, alignItems: 'center', justifyContent: 'center', shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5, elevation: 5 },
+  buttonDisabled: { opacity: 0.6 },
   sendButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16, letterSpacing: 0.5 },
-});
+}); 

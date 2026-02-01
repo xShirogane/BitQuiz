@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { db } from '../config/firebase'; 
 import { doc, onSnapshot, updateDoc, increment } from 'firebase/firestore';
-import { useTheme } from '../context/ThemeContext'; // <--- Theme
+import { useTheme } from '../context/ThemeContext';
 import { useVideoPlayer, VideoView } from 'expo-video';
 
 const GITHUB_IMAGE_BASE_URL = 'https://raw.githubusercontent.com/xShirogane/BitQuiz-Assets/main/';
@@ -25,12 +25,14 @@ const QuestionVideo = ({ uri }: { uri: string }) => {
 
 export default function MultiplayerGameScreen({ route, navigation }: any) {
   const { roomCode, isHost } = route.params;
-  const { theme } = useTheme(); // <--- Theme
+  const { theme } = useTheme();
   
   const [gameData, setGameData] = useState<any>(null);
   const [currentIndex, setCurrentIndex] = useState(0); 
   const [finished, setFinished] = useState(false); 
-  const [timeLeft, setTimeLeft] = useState(45);
+  
+  // Domyślny czas, zaktualizujemy go jak pobierzemy dane
+  const [timeLeft, setTimeLeft] = useState(30); 
 
   useEffect(() => {
     const backAction = () => { Alert.alert("Czekaj!", "Nie możesz wyjść w trakcie pojedynku.", [{ text: "OK" }]); return true; };
@@ -41,18 +43,30 @@ export default function MultiplayerGameScreen({ route, navigation }: any) {
   useEffect(() => {
     const roomRef = doc(db, 'battles', roomCode);
     const unsubscribe = onSnapshot(roomRef, (docSnap) => {
-      if (docSnap.exists()) setGameData(docSnap.data());
-      else { Alert.alert("Błąd", "Pokój usunięty."); navigation.popToTop(); }
+      if (docSnap.exists()) {
+        setGameData(docSnap.data());
+      } else { 
+        Alert.alert("Błąd", "Pokój usunięty."); 
+        navigation.popToTop(); 
+      }
     });
     return () => unsubscribe();
   }, []);
 
-  useEffect(() => { setTimeLeft(45); }, [currentIndex]);
+  // NOWE: Resetowanie czasu na podstawie ustawień pokoju
+  useEffect(() => { 
+    if (gameData?.timePerQuestion) {
+      setTimeLeft(gameData.timePerQuestion);
+    }
+  }, [currentIndex, gameData?.timePerQuestion]); // Resetujemy, gdy zmienia się pytanie lub załadują dane
 
   useEffect(() => {
     if (!gameData || gameData.status === 'waiting' || finished) return;
     if (gameData.hostFinished && gameData.guestFinished) return;
+    
+    // Jeśli czas się skończył -> zła odpowiedź (-1)
     if (timeLeft <= 0) { handleAnswer(-1); return; }
+    
     const timerId = setInterval(() => { setTimeLeft((prev) => prev - 1); }, 1000);
     return () => clearInterval(timerId);
   }, [timeLeft, finished, gameData, currentIndex]);
@@ -60,7 +74,9 @@ export default function MultiplayerGameScreen({ route, navigation }: any) {
   const handleAnswer = async (selectedIndex: number) => {
     if (!gameData) return;
     const currentQ = gameData.questions[currentIndex];
-    const isCorrect = selectedIndex === currentQ.correctAnswerIndex;
+    
+    // Sprawdzamy, czy czas się skończył (selectedIndex === -1) lub czy odpowiedź jest poprawna
+    const isCorrect = selectedIndex !== -1 && selectedIndex === currentQ.correctAnswerIndex;
 
     if (isCorrect) {
       const fieldToUpdate = isHost ? 'hostScore' : 'guestScore';
@@ -82,6 +98,16 @@ export default function MultiplayerGameScreen({ route, navigation }: any) {
       <View style={[styles.centerContainer, { backgroundColor: theme.background }]}>
         <Text style={[styles.waitingTitle, { color: theme.text }]}>Oczekiwanie na przeciwnika...</Text>
         <Text style={styles.codeText}>KOD POKOJU: {roomCode}</Text>
+        
+        {/* Wyświetlamy ustawienia pokoju oczekującym */}
+        {gameData && (
+          <View style={{ marginTop: 10, alignItems: 'center' }}>
+             <Text style={{ color: theme.subText, fontSize: 16 }}>
+               Pytania: {gameData.questions?.length || 10} | Czas: {gameData.timePerQuestion || 30}s
+             </Text>
+          </View>
+        )}
+
         <ActivityIndicator size="large" color={theme.primary} style={{ marginTop: 20 }} />
         <Text style={{ marginTop: 20, color: theme.subText }}>Podaj ten kod koledze!</Text>
       </View>
@@ -137,6 +163,8 @@ export default function MultiplayerGameScreen({ route, navigation }: any) {
   }
 
   const currentQ = gameData.questions[currentIndex];
+  // Pobieramy maxTime z bazy lub domyślnie 45s
+  const maxTime = gameData.timePerQuestion || 45; 
 
   return (
     <ScrollView contentContainerStyle={[styles.gameContainer, { backgroundColor: theme.background }]}>
@@ -152,11 +180,22 @@ export default function MultiplayerGameScreen({ route, navigation }: any) {
       </View>
 
       <View style={[styles.timerContainer, { backgroundColor: theme.border }]}>
-        <View style={[styles.timerBar, { width: `${(timeLeft / 45) * 100}%`, backgroundColor: timeLeft < 10 ? '#FF3B30' : theme.primary }]} />
+        {/* NOWE: Obliczanie szerokości paska względem dynamicznego maxTime */}
+        <View style={[
+            styles.timerBar, 
+            { 
+              width: `${(timeLeft / maxTime) * 100}%`, 
+              backgroundColor: timeLeft < 10 ? '#FF3B30' : theme.primary 
+            }
+          ]} 
+        />
         <Text style={[styles.timerText, { color: theme.text }]}>⏳ {timeLeft}s</Text>
       </View>
 
-      <Text style={[styles.progress, { color: theme.subText }]}>Pytanie {currentIndex + 1} / {gameData.questions.length}</Text>
+      {/* Wyświetlanie aktualnego numeru pytania względem całkowitej ich liczby */}
+      <Text style={[styles.progress, { color: theme.subText }]}>
+        Pytanie {currentIndex + 1} / {gameData.questions.length}
+      </Text>
       
       <View style={styles.questionCard}>
         <Text style={[styles.questionText, { color: theme.text }]}>{currentQ.text}</Text>

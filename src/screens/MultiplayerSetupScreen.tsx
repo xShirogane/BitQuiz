@@ -1,20 +1,27 @@
 import React, { useState } from 'react';
 import { 
   View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, 
-  ActivityIndicator, KeyboardAvoidingView, Platform 
+  ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView 
 } from 'react-native';
 import { db } from '../config/firebase'; 
 import { useAuth } from '../context/AuthContext';
-import { useTheme } from '../context/ThemeContext'; // <--- Theme
+import { useTheme } from '../context/ThemeContext';
 import { doc, getDoc, updateDoc, setDoc } from 'firebase/firestore';
 
 export default function MultiplayerSetupScreen({ navigation, route }: any) {
   const { examData } = route.params;
   const { user } = useAuth();
-  const { theme } = useTheme(); // <--- Theme
+  const { theme } = useTheme();
   
   const [roomCode, setRoomCode] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // NOWE: Stany dla konfiguracji gry
+  const [numQuestions, setNumQuestions] = useState(10);
+  const [timePerQuestion, setTimePerQuestion] = useState(30);
+
+  const questionOptions = [5, 10, 15, 20];
+  const timeOptions = [15, 30, 45, 60];
 
   const createRoom = async () => {
     setLoading(true);
@@ -22,17 +29,33 @@ export default function MultiplayerSetupScreen({ navigation, route }: any) {
       const newCode = Math.floor(1000 + Math.random() * 9000).toString();
       const response = await fetch(examData.apiUrl);
       const allQuestions = await response.json();
-      const duelQuestions = allQuestions.sort(() => 0.5 - Math.random()).slice(0, 10);
+      
+      // NOWE: Losowanie ilości pytań wybranej przez usera
+      const duelQuestions = allQuestions
+        .sort(() => 0.5 - Math.random())
+        .slice(0, numQuestions);
 
       await setDoc(doc(db, 'battles', newCode), {
-        hostId: user?.uid, hostEmail: user?.email, guestId: null, guestEmail: null,
-        status: 'waiting', questions: duelQuestions, hostScore: 0, guestScore: 0,
-        currentQuestionIndex: 0, createdAt: new Date()
+        hostId: user?.uid, 
+        hostEmail: user?.email, 
+        guestId: null, 
+        guestEmail: null,
+        status: 'waiting', 
+        questions: duelQuestions, 
+        hostScore: 0, 
+        guestScore: 0,
+        currentQuestionIndex: 0, 
+        createdAt: new Date(),
+        // NOWE: Zapisujemy czas na pytanie w pokoju
+        timePerQuestion: timePerQuestion 
       });
 
       navigation.navigate('MultiplayerGame', { roomCode: newCode, isHost: true, playerId: user?.uid });
-    } catch (err: any) { Alert.alert('Błąd', err.message); } 
-    finally { setLoading(false); }
+    } catch (err: any) { 
+      Alert.alert('Błąd', err.message); 
+    } finally { 
+      setLoading(false); 
+    }
   };
 
   const joinRoom = async () => {
@@ -48,18 +71,68 @@ export default function MultiplayerSetupScreen({ navigation, route }: any) {
 
       await updateDoc(roomRef, { guestId: user?.uid, guestEmail: user?.email, status: 'playing' });
       navigation.navigate('MultiplayerGame', { roomCode: roomCode, isHost: false, playerId: user?.uid });
-    } catch (err: any) { Alert.alert('Błąd dołączania', err.message); } 
-    finally { setLoading(false); }
+    } catch (err: any) { 
+      Alert.alert('Błąd dołączania', err.message); 
+    } finally { 
+      setLoading(false); 
+    }
   };
 
+  // Komponent pomocniczy dla przycisków typu Chip
+  const RenderChips = ({ options, currentVal, setVal, unit = "" }: any) => (
+    <View style={styles.chipRow}>
+      {options.map((opt: number) => (
+        <TouchableOpacity 
+          key={opt}
+          style={[
+            styles.chip, 
+            { backgroundColor: theme.card, borderColor: theme.border },
+            currentVal === opt && { backgroundColor: theme.primary, borderColor: theme.primary }
+          ]}
+          onPress={() => setVal(opt)}
+        >
+          <Text style={[
+            styles.chipText, 
+            { color: theme.text },
+            currentVal === opt && { color: '#fff' }
+          ]}>
+            {opt}{unit}
+          </Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={styles.content}>
+    <KeyboardAvoidingView 
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+      style={[styles.container, { backgroundColor: theme.background }]}
+    >
+      <ScrollView contentContainerStyle={styles.scrollContent}>
         <Text style={[styles.title, { color: theme.text }]}>Pojedynek 1vs1 ⚔️</Text>
-        <Text style={[styles.subtitle, { color: theme.subText }]}>Wybierz opcję</Text>
+        
+        {/* Sekcja konfiguracji dla hosta */}
+        <View style={styles.setupSection}>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Ustawienia Twojego pokoju:</Text>
+          
+          <Text style={[styles.label, { color: theme.subText }]}>Liczba pytań:</Text>
+          <RenderChips options={questionOptions} currentVal={numQuestions} setVal={setNumQuestions} />
+
+          <Text style={[styles.label, { color: theme.subText }]}>Czas na pytanie:</Text>
+          <RenderChips options={timeOptions} currentVal={timePerQuestion} setVal={setTimePerQuestion} unit="s" />
+
+          <TouchableOpacity 
+            style={[styles.btn, styles.createBtn, { marginTop: 10 }]} 
+            onPress={createRoom}
+            disabled={loading}
+          >
+            {loading ? <ActivityIndicator color="#fff"/> : <Text style={styles.btnText}>STWÓRZ POKÓJ</Text>}
+          </TouchableOpacity>
+        </View>
+
+        <Text style={styles.orText}>LUB DOŁĄCZ DO ISTNIEJĄCEGO</Text>
 
         <View style={[styles.card, { backgroundColor: theme.card }]}>
-          <Text style={[styles.cardHeader, { color: theme.text }]}>Dołącz do znajomego</Text>
           <TextInput
             style={[styles.input, { backgroundColor: theme.background, color: theme.text, borderColor: theme.border }]}
             placeholder="Kod pokoju"
@@ -77,32 +150,26 @@ export default function MultiplayerSetupScreen({ navigation, route }: any) {
              {loading ? <ActivityIndicator color="#fff"/> : <Text style={styles.btnText}>DOŁĄCZ</Text>}
           </TouchableOpacity>
         </View>
-
-        <Text style={styles.orText}>LUB</Text>
-
-        <TouchableOpacity 
-          style={[styles.btn, styles.createBtn]} 
-          onPress={createRoom}
-          disabled={loading}
-        >
-          {loading ? <ActivityIndicator color="#fff"/> : <Text style={styles.btnText}>STWÓRZ POKÓJ</Text>}
-        </TouchableOpacity>
-      </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { flex: 1, padding: 20, justifyContent: 'center' },
-  title: { fontSize: 32, fontWeight: 'bold', textAlign: 'center', marginBottom: 10 },
-  subtitle: { fontSize: 16, textAlign: 'center', marginBottom: 40 },
-  card: { padding: 20, borderRadius: 16, elevation: 3, marginBottom: 20 },
-  cardHeader: { fontSize: 18, fontWeight: 'bold', marginBottom: 15, textAlign: 'center' },
-  input: { padding: 15, borderRadius: 10, fontSize: 24, textAlign: 'center', letterSpacing: 5, marginBottom: 15, fontWeight: 'bold', borderWidth: 1, borderColor: 'transparent' },
+  scrollContent: { padding: 20, paddingTop: 60 },
+  title: { fontSize: 28, fontWeight: 'bold', textAlign: 'center', marginBottom: 30 },
+  setupSection: { marginBottom: 20 },
+  sectionTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 15 },
+  label: { fontSize: 14, marginBottom: 8, fontWeight: '600' },
+  chipRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
+  chip: { paddingVertical: 10, paddingHorizontal: 15, borderRadius: 10, borderWidth: 1, minWidth: 60, alignItems: 'center' },
+  chipText: { fontWeight: 'bold' },
+  card: { padding: 20, borderRadius: 16, elevation: 3 },
+  input: { padding: 15, borderRadius: 10, fontSize: 24, textAlign: 'center', letterSpacing: 5, marginBottom: 15, fontWeight: 'bold', borderWidth: 1 },
   btn: { padding: 18, borderRadius: 12, alignItems: 'center' },
   joinBtn: { backgroundColor: '#007AFF' },
-  createBtn: { backgroundColor: '#34C759', padding: 20 },
+  createBtn: { backgroundColor: '#34C759' },
   btnText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
-  orText: { textAlign: 'center', color: '#999', fontWeight: 'bold', marginVertical: 20 }
+  orText: { textAlign: 'center', color: '#999', fontWeight: 'bold', marginVertical: 30, fontSize: 12 }
 });

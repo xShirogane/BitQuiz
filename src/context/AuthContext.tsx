@@ -1,10 +1,9 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, onSnapshot } from 'firebase/firestore'; // Dodajemy onSnapshot do śledzenia zmian w bazie
-import { auth, db } from '../config/firebase'; // Musimy zaimportować też db
+import { doc, onSnapshot, updateDoc } from 'firebase/firestore'; // Dodano updateDoc
+import { auth, db } from '../config/firebase';
 import { View, ActivityIndicator } from 'react-native';
 
-// Definiujemy kształt danych naszego użytkownika w bazie
 export interface UserProfile {
   username: string;
   email: string;
@@ -15,10 +14,10 @@ export interface UserProfile {
 }
 
 interface AuthContextProps {
-  user: User | null;         // Obiekt techniczny Firebase (uid, email, tokeny)
-  userProfile: UserProfile | null; // Nasze dane z bazy (nick, status PRO)
+  user: User | null;
+  userProfile: UserProfile | null;
   loading: boolean;
-  isAdmin: boolean;          // Opcjonalnie na przyszłość
+  isAdmin: boolean;
 }
 
 const AuthContext = createContext<AuthContextProps>({ 
@@ -36,18 +35,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // 1. Nasłuchuj stanu autoryzacji (czy zalogowany)
+    // 1. Nasłuchuj stanu autoryzacji
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
 
       if (currentUser) {
         setLoading(true);
-        // 2. Jeśli zalogowany, nasłuchuj zmian w jego dokumencie w bazie 'users'
         const userDocRef = doc(db, 'users', currentUser.uid);
         
-        const unsubscribeFirestore = onSnapshot(userDocRef, (docSnap) => {
+        // 2. Nasłuchuj zmian w profilu użytkownika
+        const unsubscribeFirestore = onSnapshot(userDocRef, async (docSnap) => {
           if (docSnap.exists()) {
-            setUserProfile(docSnap.data() as UserProfile);
+            const data = docSnap.data() as UserProfile;
+            
+            // --- MECHANIZM AUTO-SYNCHRONIZACJI ---
+            // Sprawdzamy, czy email w bazie różni się od tego w Authentication
+            if (currentUser.email && data.email !== currentUser.email) {
+              console.log("Wykryto zmianę emaila. Synchronizacja bazy danych...");
+              try {
+                // Aktualizujemy tylko pole email w bazie, żeby pasowało do logowania
+                await updateDoc(userDocRef, { email: currentUser.email });
+                // Po aktualizacji onSnapshot wykona się ponownie samoczynnie z nowymi danymi
+              } catch (err) {
+                console.error("Błąd synchronizacji emaila:", err);
+              }
+            }
+            // --------------------------------------
+
+            setUserProfile(data);
           } else {
             console.log("Brak dokumentu użytkownika w bazie!");
             setUserProfile(null);
@@ -58,10 +73,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setLoading(false);
         });
 
-        // Musimy pamiętać, żeby odłączyć nasłuchiwanie bazy przy wylogowaniu
         return () => unsubscribeFirestore();
       } else {
-        // Jeśli wylogowany, czyścimy profil
         setUserProfile(null);
         setLoading(false);
       }
@@ -83,7 +96,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       user, 
       userProfile, 
       loading, 
-      isAdmin: false // na razie hardcoded
+      isAdmin: false 
     }}>
       {children}
     </AuthContext.Provider>
