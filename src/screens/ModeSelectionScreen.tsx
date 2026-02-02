@@ -39,13 +39,6 @@ export default function ModeSelectionScreen({ route, navigation }: any) {
         onPress={() => navigation.navigate('Home', { examData, mode: 'short', limit: 20, time: 30, title: 'Szybka Powtórka' })}
       />
 
-     <ModeCard 
-        title="🎲 Losowe Pytanie"
-        desc="Jedno pytanie na raz • Nieskończona pula"
-        color="#8E44AD"
-        onPress={() => navigation.navigate('QuickReview', { apiUrl: examData.apiUrl })}
-      />
-
       <ModeCard 
         title="📚 Tryb Nauki"
         desc="Po jednym pytaniu • Natychmiastowe odpowiedzi"
