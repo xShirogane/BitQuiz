@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { 
-  View, Text, StyleSheet, StatusBar, FlatList, ScrollView, Dimensions 
+  View, Text, StyleSheet, StatusBar, FlatList, ScrollView, Dimensions, RefreshControl
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,6 +12,10 @@ import { QUALIFICATIONS_DATA, Qualification } from '../data/categories';
 import { runBackgroundSync } from '../utils/offlineManager';
 import { getHistory } from '../utils/historyManager';
 
+// --- WAŻNE: Importujemy checkStreakStatus (tylko odczyt), a nie updateStreak ---
+import { checkStreakStatus, StreakData } from '../utils/streakManager';
+import { StreakCard } from '../components/StreakCard';
+
 // Components
 import GlowCard from '../components/GlowCard';
 
@@ -19,43 +23,41 @@ const { width } = Dimensions.get('window');
 
 // 1. DEFINICJA PALETY KOLORÓW (Tablica gradientów)
 const GRADIENT_PALETTE = [
-  // --- NIEBIESKIE & MORSKIE (Spokój, technologia) ---
-  ['#4facfe', '#00f2fe'], // Cyan
-  ['#00c6ff', '#0072ff'], // Vivid Blue
-  ['#43e97b', '#38f9d7'], // Mint Green
-  ['#11998e', '#38ef7d'], // Deep Teal
-  ['#13547a', '#80d0c7'], // Aqua Splash
-  ['#4c669f', '#3b5998', '#192f6a'], // Classic Navy
+  // --- NIEBIESKIE & MORSKIE ---
+  ['#4facfe', '#00f2fe'], 
+  ['#00c6ff', '#0072ff'], 
+  ['#43e97b', '#38f9d7'], 
+  ['#11998e', '#38ef7d'], 
+  ['#13547a', '#80d0c7'], 
+  ['#4c669f', '#3b5998', '#192f6a'], 
 
-  // --- FIOLETY & RÓŻE (Kreatywność, nowoczesność) ---
-  ['#667eea', '#764ba2'], // Deep Purple
-  ['#c471f5', '#fa71cd'], // Soft Pink
-  ['#b721ff', '#21d4fd'], // Electric Purple-Blue
-  ['#a18cd1', '#fbc2eb'], // Lavender
-  ['#DA22FF', '#9733EE'], // Neon Purple
+  // --- FIOLETY & RÓŻE ---
+  ['#667eea', '#764ba2'], 
+  ['#c471f5', '#fa71cd'], 
+  ['#b721ff', '#21d4fd'], 
+  ['#a18cd1', '#fbc2eb'], 
+  ['#DA22FF', '#9733EE'], 
 
-  // --- CIEPŁE: POMARAŃCZ, CZERWIEŃ, ZŁOTO (Energia) ---
-  ['#fa709a', '#fee140'], // Peach / Sunset
-  ['#ff9a9e', '#fecfef'], // Cotton Candy
-  ['#ff0844', '#ffb199'], // Crimson Red
-  ['#f6d365', '#fda085'], // Warm Sun
-  ['#fc4a1a', '#f7b733'], // Fire Orange
+  // --- CIEPŁE ---
+  ['#fa709a', '#fee140'], 
+  ['#ff9a9e', '#fecfef'], 
+  ['#ff0844', '#ffb199'], 
+  ['#f6d365', '#fda085'], 
+  ['#fc4a1a', '#f7b733'], 
 
-  // --- CIEMNE & ELEGANCKIE (Premium) ---
-  ['#0f2027', '#203a43', '#2c5364'], // Nordic Night
-  ['#232526', '#414345'], // Midnight
-  ['#434343', '#000000'], // Pure Dark
-  ['#cc2b5e', '#753a88'], // Grape Dark
+  // --- CIEMNE ---
+  ['#0f2027', '#203a43', '#2c5364'], 
+  ['#232526', '#414345'], 
+  ['#434343', '#000000'], 
+  ['#cc2b5e', '#753a88'], 
 ];
 
-// 2. FUNKCJA LOSUJĄCA (Deterministyczna - zawsze ten sam kolor dla tego samego ID)
+// 2. FUNKCJA LOSUJĄCA
 const getRandomGradient = (id: string) => {
   let hash = 0;
-  // Sumujemy kody ASCII znaków w ID
   for (let i = 0; i < id.length; i++) {
     hash += id.charCodeAt(i);
   }
-  // Wybieramy kolor z palety używając reszty z dzielenia
   return GRADIENT_PALETTE[hash % GRADIENT_PALETTE.length];
 };
 
@@ -65,6 +67,10 @@ export default function QualificationScreen({ navigation }: any) {
 
   // Stan na dane do karuzeli
   const [carouselData, setCarouselData] = useState<Qualification[]>([]);
+  // Stan na dane o serii (Streak)
+  const [streakData, setStreakData] = useState<StreakData | null>(null);
+  // Stan odświeżania (pull-to-refresh)
+  const [refreshing, setRefreshing] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -75,18 +81,22 @@ export default function QualificationScreen({ navigation }: any) {
 
   const loadData = async () => {
     try {
-      const history = await getHistory();
-      console.log(`📥 Wczytano historię: ${history.length} elementów`);
+      // 1. Ładowanie Serii - używamy checkStreakStatus (nie nalicza, tylko sprawdza stan)
+      const streak = await checkStreakStatus();
+      setStreakData(streak);
 
+      // 2. Ładowanie Historii i Karuzeli
+      const history = await getHistory();
+      
       if (history.length < 5) {
         const needed = 5 - history.length;
         
-        // Filtrujemy pulę wszystkich dostępnych
+        // Filtrujemy, żeby nie dublować tego co w historii
         const availablePool = QUALIFICATIONS_DATA.filter(
           q => !history.find(h => h.id === q.id)
         );
 
-        // Mieszamy losowo
+        // Losujemy resztę
         const shuffled = [...availablePool].sort(() => 0.5 - Math.random());
         const randomPicks = shuffled.slice(0, needed);
         
@@ -96,15 +106,27 @@ export default function QualificationScreen({ navigation }: any) {
       }
     } catch (e) {
       console.error("Błąd w loadData:", e);
+      // Fallback w razie błędu
       setCarouselData(QUALIFICATIONS_DATA.slice(0, 5));
     }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
   };
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
       
-      <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
+      <ScrollView 
+        contentContainerStyle={{ paddingBottom: 100 }}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />
+        }
+      >
         
         {/* NAGŁÓWEK */}
         <View style={styles.header}>
@@ -116,47 +138,53 @@ export default function QualificationScreen({ navigation }: any) {
           </Text>
         </View>
 
-        {/* KARUZELA EGZAMINÓW */}
+        {/* SEKCJA 1: STATYSTYKI I SERIA (STREAK) */}
         <View style={styles.section}>
-           <View style={styles.sectionHeader}>
-             <Ionicons name="school" size={24} color={theme.primary} style={{ marginRight: 8 }} />
-             <Text style={[styles.sectionTitle, { color: theme.text }]}>Ostatnie kwalifikacje</Text>
-           </View>
-           
-           <FlatList
-            data={carouselData}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: 24, paddingVertical: 20 }}
-            
-            // Efekt przyciągania (Snap)
-            snapToInterval={width * 0.75 + 20} 
-            decelerationRate="fast"
-            snapToAlignment="start"
-
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <GlowCard 
-                title={item.title}
-                subtitle={item.fullName}
-                iconName={item.iconName || 'school-outline'}
-                
-                // --- TUTAJ JEST POPRAWKA ---
-                // Używamy nowej funkcji getRandomGradient zamiast starej getGradientForTitle
-                colors={getRandomGradient(item.id)} 
-                
-                onPress={() => navigation.navigate('ModeSelection', { examData: item })}
-              />
-            )}
-          />
+          <Text style={[styles.sectionTitle, { color: theme.text, marginLeft: 24, marginBottom: 15 }]}>
+            Twoje Postępy
+          </Text>
+          
+          <View style={{ paddingHorizontal: 24 }}>
+             {streakData ? (
+               <StreakCard data={streakData} />
+             ) : (
+               // Placeholder podczas ładowania
+               <View style={[styles.statsBox, { backgroundColor: theme.card }]}>
+                 <Text style={{color: theme.subText, textAlign: 'center'}}>Synchronizacja danych...</Text>
+               </View>
+             )}
+          </View>
         </View>
 
-        {/* Placeholder na statystyki */}
+        {/* SEKCJA 2: KARUZELA KWALIFIKACJI */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.text, marginLeft: 24 }]}>Twoje Postępy</Text>
-          <View style={[styles.statsBox, { backgroundColor: theme.card }]}>
-             <Text style={{color: theme.subText}}>Rozwiązałeś dzisiaj 0 pytań.</Text>
-          </View>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="school" size={24} color={theme.primary} style={{ marginRight: 8 }} />
+              <Text style={[styles.sectionTitle, { color: theme.text }]}>Ostatnie kwalifikacje</Text>
+            </View>
+            
+            <FlatList
+              data={carouselData}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: 24, paddingVertical: 20 }}
+              
+              // Efekt przyciągania (Snap)
+              snapToInterval={width * 0.75 + 20} 
+              decelerationRate="fast"
+              snapToAlignment="start"
+
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <GlowCard 
+                  title={item.title}
+                  subtitle={item.fullName}
+                  iconName={item.iconName || 'school-outline'}
+                  colors={getRandomGradient(item.id)} 
+                  onPress={() => navigation.navigate('ModeSelection', { examData: item })}
+                />
+              )}
+            />
         </View>
 
       </ScrollView>
@@ -170,7 +198,7 @@ const styles = StyleSheet.create({
   greetingMsg: { fontSize: 28, fontWeight: '800', marginBottom: 5 },
   subMsg: { fontSize: 16, fontWeight: '500' },
   
-  section: { marginTop: 10 },
+  section: { marginTop: 25 },
   sectionHeader: { 
     flexDirection: 'row', 
     alignItems: 'center', 
@@ -179,5 +207,11 @@ const styles = StyleSheet.create({
   },
   sectionTitle: { fontSize: 20, fontWeight: '700' },
   
-  statsBox: { marginHorizontal: 24, padding: 20, borderRadius: 20, marginTop: 10 }
+  statsBox: { 
+    padding: 20, 
+    borderRadius: 20, 
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 100 
+  }
 });
