@@ -3,29 +3,38 @@ import { useColorScheme } from 'react-native'; // <--- To wykrywa ustawienia tel
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from './AuthContext'; // Potrzebujemy tego, żeby sprawdzać status PRO
 
-// Definicja kolorów (odtworzona na podstawie Twoich plików)
 const lightTheme = {
   dark: false,
-  background: '#F2F2F7',
+  background: '#F3F4F6', // Nieco cieplejszy szary
   card: '#FFFFFF',
-  text: '#000000',
-  subText: '#8E8E93',
-  primary: '#007AFF',
-  border: '#E5E5EA',
-  danger: '#FF3B30',
-  success: '#34C759',
+  text: '#111827',
+  subText: '#6B7280',
+  primary: '#2563EB',
+  border: '#E5E7EB',
+  danger: '#EF4444',
+  success: '#10B981',
+  // Nowe właściwości dla kafelków
+  cardGradient: ['#FFFFFF', '#F9FAFB'], // Delikatny gradient dla jasnego
+  cardBorder: '#E5E7EB',
+  glowColor: '#3B82F6', // Kolor podświetlenia (niebieski)
+  iconBg: '#EFF6FF',
 };
 
 const darkTheme = {
   dark: true,
-  background: '#000000',
-  card: '#1C1C1E',
-  text: '#FFFFFF',
-  subText: '#8E8E93',
-  primary: '#0A84FF',
-  border: '#38383A',
-  danger: '#FF453A',
-  success: '#32D74B',
+  background: '#0F172A', // Głęboki granat/czarny (Slate 900)
+  card: '#1E293B', // Slate 800
+  text: '#F9FAFB',
+  subText: '#9CA3AF',
+  primary: '#3B82F6',
+  border: '#334155',
+  danger: '#EF4444',
+  success: '#10B981',
+  // Nowe właściwości dla kafelków
+  cardGradient: ['#1E293B', '#111827'], // Ciemny gradient
+  cardBorder: '#334155',
+  glowColor: '#60A5FA', // Jaśniejszy niebieski dla glow
+  iconBg: 'rgba(59, 130, 246, 0.15)', // Przezroczysty niebieski
 };
 
 type ThemeType = typeof lightTheme;

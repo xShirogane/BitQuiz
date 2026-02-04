@@ -1,14 +1,23 @@
-import React from 'react';
+import React, { useEffect } from 'react'; // <--- Dodano useEffect
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { useAuth } from '../context/AuthContext';
-import { useTheme } from '../context/ThemeContext'; // <--- IMPORT
+import { useTheme } from '../context/ThemeContext';
+import { saveToHistory } from '../utils/historyManager'; // <--- Dodano import funkcji zapisu
 
 export default function ModeSelectionScreen({ route, navigation }: any) {
   const { examData } = route.params;
   const { userProfile } = useAuth();
-  const { theme } = useTheme(); // <--- UŻYCIE
+  const { theme } = useTheme();
 
-  // Helper dla karty
+  // --- LOGIKA ZAPISU DO HISTORII ---
+  useEffect(() => {
+    if (examData) {
+      saveToHistory(examData);
+    }
+  }, [examData]);
+  // ---------------------------------
+
+  // Helper dla karty (Bez zmian)
   const ModeCard = ({ title, desc, color, onPress }: any) => (
     <TouchableOpacity 
       style={[styles.card, { backgroundColor: theme.card, borderLeftColor: color }]}
@@ -29,21 +38,23 @@ export default function ModeSelectionScreen({ route, navigation }: any) {
         title="🎓 Egzamin Zawodowy"
         desc="40 pytań • 60 minut • Wynik na końcu"
         color="#007AFF"
-        onPress={() => navigation.navigate('Home', { examData, mode: 'exam', limit: 40, time: 60, title: 'Egzamin Zawodowy' })}
+        // Upewnij się, że w App.tsx masz ekran 'Exam' lub 'Home' obsługujący te parametry.
+        // W poprzednich krokach sugerowałem nazwę 'Exam', ale zostawiam Twój kod:
+        onPress={() => navigation.navigate('Exam', { examData, mode: 'exam', limit: 40, time: 60, title: 'Egzamin Zawodowy' })}
       />
 
       <ModeCard 
         title="⚡ Test Skrócony"
         desc="20 pytań • 30 minut • Wynik na końcu"
         color="#FF9500"
-        onPress={() => navigation.navigate('Home', { examData, mode: 'short', limit: 20, time: 30, title: 'Szybka Powtórka' })}
+        onPress={() => navigation.navigate('Exam', { examData, mode: 'short', limit: 20, time: 30, title: 'Szybka Powtórka' })}
       />
 
       <ModeCard 
         title="📚 Tryb Nauki"
         desc="Po jednym pytaniu • Natychmiastowe odpowiedzi"
         color="#34C759"
-        onPress={() => navigation.navigate('Training', { apiUrl: examData.apiUrl })}
+        onPress={() => navigation.navigate('TrainingScreen', { examData })}
       />
 
       {userProfile?.isPro && (
@@ -59,7 +70,7 @@ export default function ModeSelectionScreen({ route, navigation }: any) {
         title="💀 Nagła Śmierć"
         desc="0 błędów • Liczy się seria • Hardcore"
         color="#FF3B30"
-        onPress={() => navigation.navigate('OneLife', { apiUrl: examData.apiUrl, examId: examData.id })}
+        onPress={() => navigation.navigate('OneLifeScreen', { examData })}
       />
 
       <ModeCard 

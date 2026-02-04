@@ -1,13 +1,15 @@
 import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'; // <--- DODANO
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
+import { Ionicons } from '@expo/vector-icons'; // <--- DODANO
 
 // Konteksty
 import { AuthProvider } from './src/context/AuthContext';
-import { ThemeProvider, useTheme } from './src/context/ThemeContext'; // <--- Nowy import
+import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 
 // Ekrany
 import ExamScreen, { Question } from './src/screens/ExamScreen';
@@ -24,48 +26,85 @@ import ExamReviewScreen from './src/screens/ExamReviewScreen';
 import MistakeReviewScreen from './src/screens/MistakeReviewScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import ContactScreen from './src/screens/ContactScreen';
+import SearchScreen from './src/screens/SearchScreen'; // <--- Upewnij się, że masz ten plik!
 
 SplashScreen.preventAutoHideAsync();
 
-// --- TYPY NAWIGACJI ---
-export type RootStackParamList = {
-  Qualifications: undefined; 
-  ModeSelection: { examData: { id: string, title: string, apiUrl: string } };
-  Home: { 
-    examData: { id: string, title: string, apiUrl: string },
-    mode: 'exam' | 'short',
-    limit: number,
-    time: number,
-    title: string 
-  }; 
-  Exam: { apiUrl: string, limit: number, time: number, examData: { id: string } }; 
-  Training: { apiUrl: string }; 
-  Result: { 
-    score: number; 
-    total: number; 
-    questions: Question[]; 
-    userAnswers: (number | null)[]; 
-    mode?: 'exam' | 'training' | 'onelife';
-    examId?: string;
-  };
-  Profile: undefined;
-  OneLife: { apiUrl: string, examId: string };
-  MultiplayerSetup: { examData: any };
-  MultiplayerGame: { roomCode: string, isHost: boolean, playerId: string };
-  Statistics: { examId?: string, title?: string }; 
-  ExamReview: { questions: any[], userAnswers: any[], score: number, total: number }; 
-  MistakeReview: undefined;
-  Settings: undefined;
-  Contact: undefined;
-};
+const Stack = createNativeStackNavigator();
+const Tab = createBottomTabNavigator(); // <--- INICJALIZACJA TABÓW
 
-const Stack = createNativeStackNavigator<RootStackParamList>();
+// --- NASZ PŁYWAJĄCY PASEK (Floating Pill) ---
+function HomeTabs() {
+  const { theme } = useTheme();
 
-// --- EKRAN HOME (Podsumowanie przed startem) ---
-// Zaktualizowany o obsługę motywów
+  return (
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        headerShown: false,
+        tabBarShowLabel: false, // Brak tekstu
+        
+        tabBarStyle: {
+          position: 'absolute',
+          bottom: 40, // Odstęp od dołu
+          
+          // --- NOWA METODA CENTROWANIA (Marginesy) ---
+          marginHorizontal: 20, // To ściśnie pasek z obu stron (zrobi się pastylka na środku)
+          height: 40, // Wysokość paska
+          
+          // --- ZABÓJCA PUSTEJ PRZESTRZENI ---
+          paddingBottom: 0, // Resetujemy padding systemowy
+          paddingTop: 0,
+          
+          // Wygląd
+          backgroundColor: theme.card,
+          borderRadius: 30, // Idealne zaokrąglenie (połowa wysokości)
+          borderTopWidth: 0, // Usuwamy górną kreskę
+          
+          // Cień (żeby się odcinał od tła)
+          elevation: 5,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.25,
+          shadowRadius: 5,
+        },
+        
+        tabBarActiveTintColor: theme.primary,
+        tabBarInactiveTintColor: theme.subText,
+        
+        // --- UKŁAD WEWNĄTRZ PASKA ---
+        tabBarItemStyle: {
+           height: 60, // Musi być równe wysokości paska
+           justifyContent: 'center', // Ikona w pionie na środku
+           alignItems: 'center', // Ikona w poziomie na środku
+        },
+
+        tabBarIcon: ({ focused, color }) => {
+          let iconName: any;
+          const size = 26;
+
+          if (route.name === 'HomeTab') {
+            iconName = focused ? 'home' : 'home-outline';
+          } else if (route.name === 'SearchTab') {
+            iconName = focused ? 'search' : 'search-outline';
+          } else if (route.name === 'ProfileTab') {
+            iconName = focused ? 'person' : 'person-outline';
+          }
+
+          return <Ionicons name={iconName} size={size} color={color} />;
+        },
+      })}
+    >
+      <Tab.Screen name="HomeTab" component={QualificationScreen} />
+      <Tab.Screen name="SearchTab" component={SearchScreen} />
+      <Tab.Screen name="ProfileTab" component={ProfileScreen} />
+    </Tab.Navigator>
+  );
+}
+
+// --- EKRAN SUMMARY (HomeScreen) ---
 function HomeScreen({ route, navigation }: any) {
   const { examData, limit, time, title } = route.params;
-  const { theme } = useTheme(); // Pobieramy kolory
+  const { theme } = useTheme();
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -100,33 +139,29 @@ function HomeScreen({ route, navigation }: any) {
   );
 }
 
-// --- KOMPONENT ZAWIERAJĄCY NAWIGACJĘ ---
-// Wydzielony, aby mógł korzystać z useTheme()
+// --- GŁÓWNA NAWIGACJA ---
 const AppContent = () => {
   const { theme, isDark } = useTheme();
 
   return (
     <NavigationContainer>
-      {/* Dynamiczny StatusBar: biały tekst na ciemnym tle, czarny na jasnym */}
       <StatusBar style={isDark ? "light" : "dark"} />
       
       <Stack.Navigator 
-        initialRouteName="Qualifications"
+        // ZMIANA: Startujemy od 'MainTabs', który zawiera pasek
+        initialRouteName="MainTabs" 
         screenOptions={{
-           // Tło nagłówka (belki)
            headerStyle: { backgroundColor: theme.card },
-           // Kolor tytułu na belce
            headerTitleStyle: { fontWeight: 'bold', color: theme.text },
-           // Kolor przycisku "Wróć"
            headerTintColor: theme.primary,
            headerBackTitle: 'Wróć',
-           // Tło całego ekranu (domyślne dla wszystkich ekranów)
            contentStyle: { backgroundColor: theme.background }
         }}
       >
-        <Stack.Screen name="Qualifications" component={QualificationScreen} options={{ headerShown: false }} />
-        <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: 'Mój Profil' }} />
-        <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Ustawienia' }} />
+        {/* TUTAJ WSTAWIAMY NASZ PASEK JAKO EKRAN GŁÓWNY */}
+        <Stack.Screen name="MainTabs" component={HomeTabs} options={{ headerShown: false }} />
+        
+        {/* Pozostałe ekrany (przykrywają pasek gdy się w nie wejdzie) */}
         <Stack.Screen name="ModeSelection" component={ModeSelectionScreen} options={{ title: 'Wybór trybu' }} />
         <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
         <Stack.Screen name="Exam" component={ExamScreen} options={{ title: 'Egzamin', headerBackVisible: false }} />
@@ -134,7 +169,7 @@ const AppContent = () => {
         <Stack.Screen name="Result" component={ResultScreen} options={{ title: 'Wynik', headerShown: false }} />
         <Stack.Screen name="OneLife" component={OneLifeScreen} options={{ 
           title: 'Nagła Śmierć 💀',
-          headerStyle: { backgroundColor: '#1c1c1e' }, // OneLife ma swój unikalny styl
+          headerStyle: { backgroundColor: '#1c1c1e' },
           headerTintColor: '#FF3B30', 
           headerTitleStyle: { color: '#fff' }
         }} />
@@ -143,13 +178,13 @@ const AppContent = () => {
         <Stack.Screen name="Statistics" component={StatisticsScreen} options={{ title: 'Twoje Statystyki 📊' }} />
         <Stack.Screen name="ExamReview" component={ExamReviewScreen} options={{ title: 'Szczegóły testu', presentation: 'modal' }} />
         <Stack.Screen name="MistakeReview" component={MistakeReviewScreen} options={{ title: 'Trener Błędów' }} />
+        <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Ustawienia' }} />
         <Stack.Screen name="Contact" component={ContactScreen} options={{ title: 'Kontakt' }} />
       </Stack.Navigator>
     </NavigationContainer>
   );
 };
 
-// --- GŁÓWNY KOMPONENT APP ---
 export default function App() {
   useEffect(() => {
     setTimeout(async () => {
@@ -160,7 +195,6 @@ export default function App() {
   return (
     <AuthProvider>
       <ThemeProvider>
-        {/* Przenosimy logikę nawigacji do komponentu podrzędnego */}
         <AppContent />
       </ThemeProvider>
     </AuthProvider>
