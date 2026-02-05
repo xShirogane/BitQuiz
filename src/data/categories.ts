@@ -20,7 +20,6 @@ export interface Qualification {
 }
 
 export const SCHOOLS: School[] = [
-  { id: 'all', name: 'Wszystkie', icon: '♾️' },
   { id: 'ti', name: 'Tech. Informatyk', icon: '💻' },
   { id: 'tp', name: 'Tech. Programista', icon: '⌨️' },
   { id: 'tr', name: 'Tech. Reklamy', icon: '🎨' },

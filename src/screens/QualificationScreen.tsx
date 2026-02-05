@@ -8,7 +8,6 @@ import { Ionicons } from '@expo/vector-icons';
 // Context & Utils
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-//
 import { QUALIFICATIONS_DATA, Qualification, SCHOOLS } from '../data/categories'; 
 import { runBackgroundSync } from '../utils/offlineManager';
 import { getHistory } from '../utils/historyManager';
@@ -48,15 +47,13 @@ export default function QualificationScreen({ navigation }: any) {
   const [carouselData, setCarouselData] = useState<Qualification[]>([]);
   const [streakData, setStreakData] = useState<StreakData | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  // Domyślnie 'all'
-  const [selectedSchoolId, setSelectedSchoolId] = useState<string>('all');
+  
+  // ZMIANA: Domyślnie NULL (żadna kategoria nie jest wybrana)
+  const [selectedSchoolId, setSelectedSchoolId] = useState<string | null>(null);
 
-  // --- POPRAWKA TUTAJ ---
-  // Dodaliśmy [selectedSchoolId] do tablicy zależności na dole
   useFocusEffect(
     useCallback(() => {
       runBackgroundSync();
-      // Teraz loadData będzie "widzieć" aktualnie wybraną szkołę, a nie starą
       loadData();
     }, [selectedSchoolId]) 
   );
@@ -65,37 +62,42 @@ export default function QualificationScreen({ navigation }: any) {
     try {
       const streak = await checkStreakStatus();
       setStreakData(streak);
-      // To wywołanie korzysta teraz z aktualnego selectedSchoolId
       updateExamList(selectedSchoolId); 
     } catch (e) {
       console.error("Błąd w loadData:", e);
     }
   };
 
-  const updateExamList = async (schoolId: string) => {
-    if (schoolId === 'all') {
+  // ZMIANA: Obsługa null (gdy nic nie jest zaznaczone)
+  const updateExamList = async (schoolId: string | null) => {
+    if (!schoolId) {
+      // BRAK FILTRA -> Pokaż "Polecane" (Historia + Losowe)
       const history = await getHistory();
       if (history.length < 5) {
         const needed = 5 - history.length;
-        // Filtrujemy tylko te, których nie ma w historii
         const availablePool = QUALIFICATIONS_DATA.filter(q => !history.find(h => h.id === q.id));
-        // Losujemy
         const shuffled = [...availablePool].sort(() => 0.5 - Math.random());
         setCarouselData([...history, ...shuffled.slice(0, needed)]);
       } else {
         setCarouselData(history.slice(0, 5));
       }
     } else {
-      // Filtrujemy po szkole
+      // FILTR WYBRANY -> Pokaż tylko egzaminy z danej szkoły
       const filtered = QUALIFICATIONS_DATA.filter(q => q.schoolIds.includes(schoolId));
       setCarouselData(filtered);
     }
   };
 
   const handleSchoolSelect = (schoolId: string) => {
-    setSelectedSchoolId(schoolId);
-    // Tutaj też wywołujemy update, żeby zareagować na kliknięcie od razu
-    updateExamList(schoolId);
+    // ZMIANA: Logika Toggle (Przełącznik)
+    // Jeśli klikniesz w już zaznaczoną szkołę -> odznacz ją (wróć do null)
+    if (selectedSchoolId === schoolId) {
+      setSelectedSchoolId(null);
+      updateExamList(null);
+    } else {
+      setSelectedSchoolId(schoolId);
+      updateExamList(schoolId);
+    }
   };
 
   const onRefresh = async () => {
@@ -105,7 +107,7 @@ export default function QualificationScreen({ navigation }: any) {
   };
 
   const handleNewsPress = () => {
-    Alert.alert("Aktualności", "Wersja 2.0 już dostępna! Dodaliśmy nowe pytania i tryb statystyk. Dziękujemy, że jesteś z nami! 🚀");
+    navigation.navigate('News');
   };
 
   return (
@@ -129,15 +131,13 @@ export default function QualificationScreen({ navigation }: any) {
         </View>
         
         {/* STATYSTYKI (SERIA) */}
-        {/* Zmniejszony margin bottom z 20 na 10 */}
-        <View style={{ paddingHorizontal: 24, marginBottom: -10 }}>
+        <View style={{ paddingHorizontal: 24, marginBottom: 10 }}>
            {streakData ? <StreakCard data={streakData} /> : null}
         </View>
 
         {/* KATEGORIE (SZKOŁY) */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            {/* Dodana ikona Folderu */}
             <Ionicons name="folder-open" size={20} color={theme.primary} style={{ marginRight: 8 }} />
             <Text style={[styles.sectionTitle, { color: theme.text }]}>Kategorie</Text>
           </View>
@@ -146,13 +146,12 @@ export default function QualificationScreen({ navigation }: any) {
             data={SCHOOLS}
             horizontal
             showsHorizontalScrollIndicator={false}
-            // Zmniejszony padding vertical z 15 na 10 (naprawia odcięcie)
-            contentContainerStyle={{ paddingHorizontal: 24, paddingVertical: 10, }} 
+            contentContainerStyle={{ paddingHorizontal: 24, paddingVertical: 10 }} 
             keyExtractor={(item) => item.id}
             renderItem={({ item }) => (
               <SchoolCard 
                 school={item} 
-                isActive={selectedSchoolId === item.id}
+                isActive={selectedSchoolId === item.id} // Podświetla się tylko, gdy ID pasuje
                 onPress={() => handleSchoolSelect(item.id)}
               />
             )}
@@ -162,9 +161,14 @@ export default function QualificationScreen({ navigation }: any) {
         {/* LISTA EGZAMINÓW */}
         <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Ionicons name={selectedSchoolId === 'all' ? "star" : "funnel"} size={20} color={theme.primary} style={{ marginRight: 8 }} />
+              <Ionicons 
+                name={selectedSchoolId ? "funnel" : "star"} 
+                size={20} 
+                color={theme.primary} 
+                style={{ marginRight: 8 }} 
+              />
               <Text style={[styles.sectionTitle, { color: theme.text }]}>
-                {selectedSchoolId === 'all' ? "Polecane dla Ciebie" : "Wybrane Egzaminy"}
+                {selectedSchoolId ? "Wybrane Egzaminy" : "Polecane dla Ciebie"}
               </Text>
             </View>
             
@@ -173,7 +177,6 @@ export default function QualificationScreen({ navigation }: any) {
                 data={carouselData}
                 horizontal
                 showsHorizontalScrollIndicator={false}
-                // Utrzymujemy padding 10-15 dla cienia
                 contentContainerStyle={{ paddingHorizontal: 24, paddingVertical: 12 }}
                 snapToInterval={width * 0.75 + 20} 
                 decelerationRate="fast"
@@ -196,10 +199,9 @@ export default function QualificationScreen({ navigation }: any) {
             )}
         </View>
 
-         {/* SZYBKIE AKCJE (Twoja sekcja na dole) */}
+         {/* SZYBKIE AKCJE */}
         <View style={styles.section}>
           <View style={[styles.sectionHeader, {marginBottom: 10}]}>
-             {/* Dodana ikona Pioruna */}
              <Ionicons name="flash" size={20} color="#FF9800" style={{ marginRight: 8 }} />
              <Text style={[styles.sectionTitle, { color: theme.text }]}>Szybkie akcje</Text>
           </View>
@@ -208,39 +210,37 @@ export default function QualificationScreen({ navigation }: any) {
           <ProUpgradeCard onPress={() => navigation.navigate('Settings')} />
           
           <View style={styles.gridContainer}>
-            {/* Rząd 1 */}
             <View style={styles.row}>
               <QuickActionTile 
                 title="Sklep" 
-                description="Wydaj punkty" // Nowy opis
+                description="Wydaj punkty" 
                 iconName="cart" 
                 color="#E040FB" 
-                onPress={() => navigation.navigate('Sklep')} 
+                onPress={() => navigation.navigate('Shop')} 
               />
               <QuickActionTile 
                 title="Aktualności" 
-                description="Co nowego?"   // <--- Tutaj wpisujesz opis
+                description="Co nowego?" 
                 iconName="newspaper" 
                 color="#FF9800" 
-                onPress={() => navigation.navigate('Aktualności')}
+                onPress={handleNewsPress} 
               />
             </View>
 
-            {/* Rząd 2 */}
             <View style={styles.row}>
               <QuickActionTile 
                 title="Wesprzyj nas" 
-                description="Postaw nam pączka"  // <--- Tutaj wpisujesz opis
+                description="Postaw kawę" 
                 iconName="cafe" 
                 color="#F44336" 
-                onPress={() => navigation.navigate('Wsparcie❤️')}
+                onPress={() => navigation.navigate('Support')} 
               />
               <QuickActionTile 
                 title="Kontakt" 
-                description="Napisz do nas" // <--- Tutaj wpisujesz opis
+                description="Napisz do nas" 
                 iconName="chatbubbles" 
                 color="#2196F3" 
-                onPress={() => navigation.navigate('Kontakt')}
+                onPress={() => navigation.navigate('Contact2')} 
               />
             </View>
           </View>
@@ -253,7 +253,6 @@ export default function QualificationScreen({ navigation }: any) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  // Zmniejszony paddingBottom w headerze z 15 na 10
   header: { paddingHorizontal: 24, paddingTop: 60, paddingBottom: 10 },
   greetingMsg: { fontSize: 28, fontWeight: '800', marginBottom: 5 },
   subMsg: { fontSize: 16, fontWeight: '500' },
@@ -266,7 +265,6 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   
-  // Zwiększony nieco odstęp między sekcjami dla czytelności (było 10)
   section: { marginTop: 15 }, 
   sectionHeader: { 
     flexDirection: 'row', 
