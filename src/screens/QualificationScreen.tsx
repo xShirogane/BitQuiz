@@ -216,14 +216,14 @@ export default function QualificationScreen({ navigation }: any) {
                 description="Wydaj punkty" 
                 iconName="cart" 
                 color="#E040FB" 
-                onPress={() => navigation.navigate('Shop')} 
+                onPress={() => navigation.navigate('Sklep')} 
               />
               <QuickActionTile 
                 title="Aktualności" 
                 description="Co nowego?" 
                 iconName="newspaper" 
                 color="#FF9800" 
-                onPress={handleNewsPress} 
+                onPress={() => navigation.navigate('Aktualności')}
               />
             </View>
 
@@ -233,14 +233,14 @@ export default function QualificationScreen({ navigation }: any) {
                 description="Postaw kawę" 
                 iconName="cafe" 
                 color="#F44336" 
-                onPress={() => navigation.navigate('Support')} 
+                onPress={() => navigation.navigate('Wsparcie❤️')} 
               />
               <QuickActionTile 
                 title="Kontakt" 
                 description="Napisz do nas" 
                 iconName="chatbubbles" 
                 color="#2196F3" 
-                onPress={() => navigation.navigate('Contact2')} 
+                onPress={() => navigation.navigate('Kontakt')} 
               />
             </View>
           </View>

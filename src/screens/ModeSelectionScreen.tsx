@@ -1,231 +1,247 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { 
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, StatusBar, Dimensions 
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native'; // <--- WAŻNE: Do odświeżania
-
-import { useAuth } from '../context/AuthContext';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../context/ThemeContext';
-import { saveToHistory } from '../utils/historyManager';
-import { getStatsForExam, ExamStats } from '../utils/statisticsManager'; // <--- Import logiki
+import { Qualification } from '../data/categories';
+import { getMistakes } from '../utils/historyManager';
 
-export default function ModeSelectionScreen({ route, navigation }: any) {
-  const { examData } = route.params;
-  const { userProfile } = useAuth();
+const { width } = Dimensions.get('window');
+
+// Komponent Karty Trybu
+const ModeCard = ({ title, description, icon, colors, onPress, disabled = false }: any) => {
   const { theme } = useTheme();
 
-  // Stan na statystyki (domyślnie zera)
-  const [stats, setStats] = useState<ExamStats>({
-    solvedQuestions: 0,
-    averageAccuracy: 0,
-    bestScore: '0/0'
-  });
+  return (
+    <TouchableOpacity 
+      onPress={onPress} 
+      activeOpacity={0.9} 
+      disabled={disabled}
+      style={[styles.cardContainer, disabled && { opacity: 0.6 }]}
+    >
+      <LinearGradient
+        colors={colors}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.cardGradient}
+      >
+        <View style={styles.iconCircle}>
+          <Ionicons name={icon} size={32} color="#FFF" />
+        </View>
+        <View style={styles.textContainer}>
+          <Text style={styles.cardTitle}>{title}</Text>
+          <Text style={styles.cardDesc}>{description}</Text>
+        </View>
+        <View style={styles.arrowContainer}>
+          <Ionicons name="chevron-forward" size={24} color="rgba(255,255,255,0.6)" />
+        </View>
+      </LinearGradient>
+    </TouchableOpacity>
+  );
+};
 
-  // 1. Zapis historii + Pobranie świeżych statystyk przy każdym wejściu
+export default function ModeSelectionScreen({ route, navigation }: any) {
+  const { theme, isDark } = useTheme();
+  const { examData } = route.params as { examData: Qualification };
+  
+  const [mistakesCount, setMistakesCount] = useState(0);
+
   useFocusEffect(
     useCallback(() => {
-      // Zapisz, że tu byliśmy
-      if (examData) saveToHistory(examData);
-
-      // Pobierz prawdziwe dane
-      const loadStats = async () => {
-        const data = await getStatsForExam(examData.id);
-        setStats(data);
+      const checkMistakes = async () => {
+        try {
+          const mistakes = await getMistakes(examData.id);
+          setMistakesCount(mistakes.length);
+        } catch (e) {
+          console.log("Błąd sprawdzania błędów:", e);
+        }
       };
-      loadStats();
-    }, [examData])
-  );
-
-  // --- WIDGET STATYSTYK (TERAZ KLIKALNY!) ---
-  const StatsWidget = () => (
-    <TouchableOpacity 
-      activeOpacity={0.7}
-      onPress={() => navigation.navigate('Statistics', { filterId: examData.id })} // Przekazujemy ID do filtrowania
-    >
-      <View style={[styles.statsContainer, { backgroundColor: theme.card, borderColor: theme.border }]}>
-        <View style={{flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginBottom: 15}}>
-           <Text style={[styles.statsHeader, { color: theme.subText, marginBottom: 0, marginRight: 5 }]}>
-             TWOJE WYNIKI ({examData.title})
-           </Text>
-           <Ionicons name="chevron-forward" size={12} color={theme.subText} />
-        </View>
-        
-        <View style={styles.statsRow}>
-          {/* 1. Rozwiązane Pytania */}
-          <View style={styles.statBox}>
-            <Ionicons name="checkmark-circle-outline" size={24} color={theme.primary} />
-            <Text style={[styles.statValue, { color: theme.text }]}>{stats.solvedQuestions}</Text>
-            <Text style={[styles.statLabel, { color: theme.subText }]}>Rozwiązane</Text>
-          </View>
-
-          {/* Separator */}
-          <View style={[styles.vertLine, { backgroundColor: theme.border }]} />
-
-          {/* 2. Skuteczność */}
-          <View style={styles.statBox}>
-            <Ionicons name="pie-chart-outline" size={24} color={stats.averageAccuracy > 50 ? (theme.success || '#10B981') : (theme.danger || '#EF4444')} />
-            <Text style={[styles.statValue, { color: theme.text }]}>{stats.averageAccuracy}%</Text>
-            <Text style={[styles.statLabel, { color: theme.subText }]}>Poprawne</Text>
-          </View>
-
-          {/* Separator */}
-          <View style={[styles.vertLine, { backgroundColor: theme.border }]} />
-
-          {/* 3. Najlepszy Egzamin */}
-          <View style={styles.statBox}>
-            <Ionicons name="trophy-outline" size={24} color="#F59E0B" />
-            <Text style={[styles.statValue, { color: theme.text }]}>{stats.bestScore}</Text>
-            <Text style={[styles.statLabel, { color: theme.subText }]}>Rekord</Text>
-          </View>
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
-
-  // Helper dla przycisków
-  const ModeCard = ({ title, desc, color, icon, onPress }: any) => (
-    <TouchableOpacity 
-      style={[styles.card, { backgroundColor: theme.card, borderLeftColor: color }]}
-      onPress={onPress}
-      activeOpacity={0.8}
-    >
-      <View style={styles.cardContent}>
-        <View>
-          <Text style={[styles.cardTitle, { color: theme.text }]}>{title}</Text>
-          <Text style={[styles.cardDesc, { color: theme.subText }]}>{desc}</Text>
-        </View>
-        <Ionicons name={icon} size={28} color={color} style={{ opacity: 0.8 }} />
-      </View>
-    </TouchableOpacity>
+      checkMistakes();
+    }, [examData.id])
   );
 
   return (
-    <ScrollView contentContainerStyle={[styles.container, { backgroundColor: theme.background }]}>
-      
-      <Text style={[styles.title, { color: theme.text }]}>Wybierz tryb nauki</Text>
-      <Text style={[styles.subtitle, { color: theme.subText }]}>{examData.fullName}</Text>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
 
-      {/* Wyświetlamy widget */}
-      <StatsWidget />
+      {/* NAGŁÓWEK */}
+      <View style={styles.header}>
+        <Text style={[styles.headerTitle, { color: theme.text }]}>Wybierz Tryb</Text>
+      </View>
 
-      <View style={styles.modesList}>
-        <ModeCard 
-          title="🎓 Egzamin Zawodowy"
-          desc="40 pytań • 60 minut • Oficjalny format"
-          color="#007AFF"
-          icon="clipboard-outline"
-          onPress={() => navigation.navigate('Exam', { examData, mode: 'exam', limit: 40, time: 60, title: 'Egzamin Zawodowy' })}
-        />
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        
+        {/* INFO O KWALIFIKACJI */}
+        <View style={[styles.infoBox, { backgroundColor: theme.card }]}>
+          <View style={[styles.infoIcon, { backgroundColor: theme.primary + '20' }]}>
+            <Ionicons name="school" size={28} color={theme.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.infoLabel, { color: theme.subText }]}>WYBRANA KWALIFIKACJA</Text>
+            <Text style={[styles.infoTitle, { color: theme.text }]}>{examData.title}</Text>
+            <Text style={[styles.infoSubtitle, { color: theme.text }]} numberOfLines={1}>
+              {examData.fullName}
+            </Text>
+          </View>
+        </View>
 
-        <ModeCard 
-          title="⚡ Test Skrócony"
-          desc="20 pytań • 30 minut • Szybka powtórka"
-          color="#FF9500"
-          icon="flash-outline"
-          onPress={() => navigation.navigate('Exam', { examData, mode: 'short', limit: 20, time: 30, title: 'Szybka Powtórka' })}
-        />
+        <Text style={[styles.sectionLabel, { color: theme.subText }]}>DOSTĘPNE TRYBY</Text>
 
-        <ModeCard 
-          title="📚 Tryb Nauki"
-          desc="Bez stresu • Natychmiastowe odpowiedzi"
-          color="#34C759"
-          icon="book-outline"
+        {/* 1. TRYB NAUKI */}
+        <ModeCard
+          title="Tryb Nauki"
+          description="Ucz się we własnym tempie. Sprawdzaj odpowiedzi na bieżąco, bez stresu."
+          icon="book"
+          colors={['#4facfe', '#00f2fe']} // Niebieski
           onPress={() => navigation.navigate('Training', { examData })}
         />
 
-        {userProfile?.isPro && (
-          <ModeCard 
-            title="💎 Trener Błędów"
-            desc="Tylko to, co sprawia Ci trudność"
-            color="#FFD700"
-            icon="construct-outline"
-            onPress={() => navigation.navigate('MistakeReview')}
-          />
-        )}
+        {/* 2. PEŁNY EGZAMIN (40 pytań) */}
+        <ModeCard
+          title="Pełny Egzamin"
+          description="Symulacja CKE. 40 pytań, 60 minut. Prawdziwe wyzwanie."
+          icon="stopwatch"
+          colors={['#FF416C', '#FF4B2B']} // Czerwony
+          onPress={() => navigation.navigate('Exam', { examData, isShortExam: false })}
+        />
 
-        <ModeCard 
-          title="💀 Nagła Śmierć"
-          desc="Jeden błąd i koniec gry"
-          color="#FF3B30"
-          icon="skull-outline"
+        {/* 3. SZYBKI TEST (20 pytań - NOWOŚĆ) */}
+        <ModeCard
+          title="Szybki Test"
+          description="Brak czasu? 20 pytań, 30 minut. Idealne na krótką przerwę."
+          icon="flash"
+          colors={['#F7971E', '#FFD200']} // Pomarańczowo-Żółty (Energia)
+          // Przekazujemy flagę isShortExam: true
+          onPress={() => navigation.navigate('Exam', { examData, isShortExam: true })}
+        />
+
+        {/* 4. ONE LIFE */}
+        <ModeCard
+          title="One Life"
+          description="Tryb Hardcore. Jeden błąd kończy grę. Jak daleko zajdziesz?"
+          icon="skull"
+          colors={['#434343', '#000000']} // Ciemny
           onPress={() => navigation.navigate('OneLife', { examData })}
         />
 
-        <ModeCard 
-          title="⚔️ Pojedynek 1vs1"
-          desc="Zagraj ze znajomym na jednym telefonie"
-          color="#9C27B0"
-          icon="people-outline"
+        {/* 5. POPRAWA BŁĘDÓW (Tylko jeśli są błędy) */}
+        {mistakesCount > 0 && (
+          <ModeCard
+            title="Poprawa Błędów"
+            description={`Masz ${mistakesCount} pytań do poprawy. Powtórz to, co sprawia trudność.`}
+            icon="refresh-circle"
+            colors={['#11998e', '#38ef7d']} // Zielony
+            onPress={() => navigation.navigate('MistakeReview', { examData })}
+          />
+        )}
+        
+        {/* 6. MULTIPLAYER */}
+        <ModeCard
+          title="Pojedynek 1vs1"
+          description="Rzuć wyzwanie znajomemu na jednym telefonie."
+          icon="game-controller"
+          colors={['#DA22FF', '#9733EE']} // Fioletowy
           onPress={() => navigation.navigate('MultiplayerSetup', { examData })}
         />
-      </View>
 
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flexGrow: 1, padding: 20, paddingBottom: 40 },
-  title: { fontSize: 28, fontWeight: 'bold', textAlign: 'center', marginBottom: 5, marginTop: 10 },
-  subtitle: { fontSize: 14, textAlign: 'center', marginBottom: 25, fontWeight: '500' },
+  container: { flex: 1 },
+  header: {
+    paddingHorizontal: 24,
+    paddingTop: 25,
+    paddingBottom: 20,
+    justifyContent: 'center',
+  },
+  headerTitle: { 
+    fontSize: 28, 
+    fontWeight: '800' 
+  },
   
-  // Style Widgetu
-  statsContainer: {
-    borderRadius: 16,
-    padding: 15,
-    marginBottom: 30,
-    borderWidth: 1,
+  scrollContent: { paddingHorizontal: 20, paddingBottom: 40 },
+
+  infoBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 20,
+    borderRadius: 20,
+    marginBottom: 25,
     elevation: 2,
     shadowColor: '#000',
     shadowOpacity: 0.05,
     shadowRadius: 5,
-    shadowOffset: { width: 0, height: 2 }
+    shadowOffset: { width: 0, height: 2 },
   },
-  statsHeader: {
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 1,
-    textAlign: 'center',
-    textTransform: 'uppercase',
-  },
-  statsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
+  infoIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 15,
+    justifyContent: 'center',
     alignItems: 'center',
+    marginRight: 15,
   },
-  statBox: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  statValue: {
-    fontSize: 18,
+  infoLabel: { fontSize: 10, fontWeight: 'bold', letterSpacing: 1, marginBottom: 2 },
+  infoTitle: { fontSize: 20, fontWeight: '900', marginBottom: 2 },
+  infoSubtitle: { fontSize: 14, opacity: 0.8 },
+
+  sectionLabel: {
+    fontSize: 14,
     fontWeight: 'bold',
-    marginVertical: 4,
-  },
-  statLabel: {
-    fontSize: 11,
-  },
-  vertLine: {
-    width: 1,
-    height: 30,
-    backgroundColor: '#ccc',
+    marginBottom: 15,
+    marginLeft: 5,
+    opacity: 0.6,
   },
 
-  modesList: { gap: 15 },
-  card: { 
-    padding: 20, 
-    borderRadius: 16, 
-    elevation: 2, 
-    shadowColor: '#000', 
-    shadowOpacity: 0.08, 
-    shadowRadius: 4, 
-    shadowOffset: { width: 0, height: 2 }, 
-    borderLeftWidth: 5 
+  cardContainer: {
+    marginBottom: 15,
+    borderRadius: 20,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
   },
-  cardContent: {
+  cardGradient: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    padding: 20,
+    borderRadius: 20,
+    minHeight: 110,
   },
-  cardTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 4 },
-  cardDesc: { fontSize: 13 },
+  iconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  textContainer: { flex: 1 },
+  cardTitle: {
+    color: '#FFF',
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 4,
+    textShadowColor: 'rgba(0,0,0,0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  cardDesc: {
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '500',
+  },
+  arrowContainer: {
+    marginLeft: 10,
+    justifyContent: 'center',
+  },
 });
