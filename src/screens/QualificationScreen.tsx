@@ -8,7 +8,8 @@ import { Ionicons } from '@expo/vector-icons';
 // Context & Utils
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { QUALIFICATIONS_DATA, Qualification, SCHOOLS } from '../data/categories';
+//
+import { QUALIFICATIONS_DATA, Qualification, SCHOOLS } from '../data/categories'; 
 import { runBackgroundSync } from '../utils/offlineManager';
 import { getHistory } from '../utils/historyManager';
 import { checkStreakStatus, StreakData } from '../utils/streakManager';
@@ -47,19 +48,24 @@ export default function QualificationScreen({ navigation }: any) {
   const [carouselData, setCarouselData] = useState<Qualification[]>([]);
   const [streakData, setStreakData] = useState<StreakData | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  // Domyślnie 'all'
   const [selectedSchoolId, setSelectedSchoolId] = useState<string>('all');
 
+  // --- POPRAWKA TUTAJ ---
+  // Dodaliśmy [selectedSchoolId] do tablicy zależności na dole
   useFocusEffect(
     useCallback(() => {
       runBackgroundSync();
+      // Teraz loadData będzie "widzieć" aktualnie wybraną szkołę, a nie starą
       loadData();
-    }, [])
+    }, [selectedSchoolId]) 
   );
 
   const loadData = async () => {
     try {
       const streak = await checkStreakStatus();
       setStreakData(streak);
+      // To wywołanie korzysta teraz z aktualnego selectedSchoolId
       updateExamList(selectedSchoolId); 
     } catch (e) {
       console.error("Błąd w loadData:", e);
@@ -71,13 +77,16 @@ export default function QualificationScreen({ navigation }: any) {
       const history = await getHistory();
       if (history.length < 5) {
         const needed = 5 - history.length;
+        // Filtrujemy tylko te, których nie ma w historii
         const availablePool = QUALIFICATIONS_DATA.filter(q => !history.find(h => h.id === q.id));
+        // Losujemy
         const shuffled = [...availablePool].sort(() => 0.5 - Math.random());
         setCarouselData([...history, ...shuffled.slice(0, needed)]);
       } else {
         setCarouselData(history.slice(0, 5));
       }
     } else {
+      // Filtrujemy po szkole
       const filtered = QUALIFICATIONS_DATA.filter(q => q.schoolIds.includes(schoolId));
       setCarouselData(filtered);
     }
@@ -85,6 +94,7 @@ export default function QualificationScreen({ navigation }: any) {
 
   const handleSchoolSelect = (schoolId: string) => {
     setSelectedSchoolId(schoolId);
+    // Tutaj też wywołujemy update, żeby zareagować na kliknięcie od razu
     updateExamList(schoolId);
   };
 
@@ -94,9 +104,8 @@ export default function QualificationScreen({ navigation }: any) {
     setRefreshing(false);
   };
 
-  // Handler dla przycisku Aktualności
   const handleNewsPress = () => {
-    Alert.alert("Aktualności", "Wersja 2.0 już dostępna! Dodaliśmy tryb Multiplayer i nowe pytania INF.03. Dziękujemy, że jesteś z nami! 🚀");
+    Alert.alert("Aktualności", "Wersja 2.0 już dostępna! Dodaliśmy nowe pytania i tryb statystyk. Dziękujemy, że jesteś z nami! 🚀");
   };
 
   return (
@@ -106,6 +115,7 @@ export default function QualificationScreen({ navigation }: any) {
       <ScrollView 
         contentContainerStyle={{ paddingBottom: 100 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />}
+        showsVerticalScrollIndicator={false}
       >
         
         {/* NAGŁÓWEK */}
@@ -117,62 +127,27 @@ export default function QualificationScreen({ navigation }: any) {
             Dziś dobry dzień na naukę.
           </Text>
         </View>
-
-        {/* KARTA PRO */}
-        <ProUpgradeCard onPress={() => navigation.navigate('Settings')} />
         
         {/* STATYSTYKI (SERIA) */}
-        <View style={{ paddingHorizontal: 24, marginBottom: 20 }}>
+        {/* Zmniejszony margin bottom z 20 na 10 */}
+        <View style={{ paddingHorizontal: 24, marginBottom: -10 }}>
            {streakData ? <StreakCard data={streakData} /> : null}
-        </View>
-
-        {/* --- NOWE: SZYBKIE AKCJE (GRID 2x2) --- */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.text, marginLeft: 24, marginBottom: 10 }]}>Szybkie akcje</Text>
-          
-          <View style={styles.gridContainer}>
-            {/* Rząd 1 */}
-            <View style={styles.row}>
-              <QuickActionTile 
-                title="Sklep" 
-                iconName="cart" 
-                color="#E040FB" 
-                onPress={() => navigation.navigate('Settings')} 
-              />
-              <QuickActionTile 
-                title="Aktualności" 
-                iconName="newspaper" 
-                color="#FF9800" 
-                onPress={handleNewsPress} 
-              />
-            </View>
-
-            {/* Rząd 2 */}
-            <View style={styles.row}>
-              <QuickActionTile 
-                title="Wesprzyj nas" 
-                iconName="cafe" 
-                color="#F44336" 
-                onPress={() => navigation.navigate('Contact')} 
-              />
-              <QuickActionTile 
-                title="Kontakt" 
-                iconName="chatbubbles" 
-                color="#2196F3" 
-                onPress={() => navigation.navigate('Contact')} 
-              />
-            </View>
-          </View>
         </View>
 
         {/* KATEGORIE (SZKOŁY) */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.text, marginLeft: 24 }]}>Kategorie</Text>
+          <View style={styles.sectionHeader}>
+            {/* Dodana ikona Folderu */}
+            <Ionicons name="folder-open" size={20} color={theme.primary} style={{ marginRight: 8 }} />
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>Kategorie</Text>
+          </View>
+
           <FlatList
             data={SCHOOLS}
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: 24, paddingVertical: 15 }}
+            // Zmniejszony padding vertical z 15 na 10 (naprawia odcięcie)
+            contentContainerStyle={{ paddingHorizontal: 24, paddingVertical: 10, }} 
             keyExtractor={(item) => item.id}
             renderItem={({ item }) => (
               <SchoolCard 
@@ -198,7 +173,8 @@ export default function QualificationScreen({ navigation }: any) {
                 data={carouselData}
                 horizontal
                 showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ paddingHorizontal: 24, paddingVertical: 10 }}
+                // Utrzymujemy padding 10-15 dla cienia
+                contentContainerStyle={{ paddingHorizontal: 24, paddingVertical: 12 }}
                 snapToInterval={width * 0.75 + 20} 
                 decelerationRate="fast"
                 snapToAlignment="start"
@@ -220,6 +196,56 @@ export default function QualificationScreen({ navigation }: any) {
             )}
         </View>
 
+         {/* SZYBKIE AKCJE (Twoja sekcja na dole) */}
+        <View style={styles.section}>
+          <View style={[styles.sectionHeader, {marginBottom: 10}]}>
+             {/* Dodana ikona Pioruna */}
+             <Ionicons name="flash" size={20} color="#FF9800" style={{ marginRight: 8 }} />
+             <Text style={[styles.sectionTitle, { color: theme.text }]}>Szybkie akcje</Text>
+          </View>
+
+          {/* KARTA PRO */}
+          <ProUpgradeCard onPress={() => navigation.navigate('Settings')} />
+          
+          <View style={styles.gridContainer}>
+            {/* Rząd 1 */}
+            <View style={styles.row}>
+              <QuickActionTile 
+                title="Sklep" 
+                description="Kup Premium"  // <--- Tutaj wpisujesz opis
+                iconName="cart" 
+                color="#E040FB" 
+                onPress={() => navigation.navigate('Settings')} 
+              />
+              <QuickActionTile 
+                title="Aktualności" 
+                description="Co nowego?"   // <--- Tutaj wpisujesz opis
+                iconName="newspaper" 
+                color="#FF9800" 
+                onPress={handleNewsPress} 
+              />
+            </View>
+
+            {/* Rząd 2 */}
+            <View style={styles.row}>
+              <QuickActionTile 
+                title="Wesprzyj nas" 
+                description="Postaw kawę"  // <--- Tutaj wpisujesz opis
+                iconName="cafe" 
+                color="#F44336" 
+                onPress={() => navigation.navigate('Contact')} 
+              />
+              <QuickActionTile 
+                title="Kontakt" 
+                description="Napisz do nas" // <--- Tutaj wpisujesz opis
+                iconName="chatbubbles" 
+                color="#2196F3" 
+                onPress={() => navigation.navigate('Contact')} 
+              />
+            </View>
+          </View>
+        </View>
+
       </ScrollView>
     </View>
   );
@@ -227,20 +253,21 @@ export default function QualificationScreen({ navigation }: any) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingHorizontal: 24, paddingTop: 60, paddingBottom: 15 },
+  // Zmniejszony paddingBottom w headerze z 15 na 10
+  header: { paddingHorizontal: 24, paddingTop: 60, paddingBottom: 10 },
   greetingMsg: { fontSize: 28, fontWeight: '800', marginBottom: 5 },
   subMsg: { fontSize: 16, fontWeight: '500' },
   
-  // Kontener dla Grida Szybkich Akcji
   gridContainer: {
-    paddingHorizontal: 19, // Margines dopasowany do QuickActionTile (marginHorizontal: 5)
+    paddingHorizontal: 19,
   },
   row: {
     flexDirection: 'row',
-    marginBottom: 10, // Odstęp między rzędami
+    marginBottom: 10,
   },
   
-  section: { marginTop: 10 },
+  // Zwiększony nieco odstęp między sekcjami dla czytelności (było 10)
+  section: { marginTop: 15 }, 
   sectionHeader: { 
     flexDirection: 'row', 
     alignItems: 'center', 

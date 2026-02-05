@@ -5,12 +5,13 @@ import { useTheme } from '../context/ThemeContext';
 
 interface QuickActionTileProps {
   title: string;
+  description?: string; // Opcjonalny opis
   iconName: any;
   color: string;
   onPress: () => void;
 }
 
-export const QuickActionTile: React.FC<QuickActionTileProps> = ({ title, iconName, color, onPress }) => {
+export const QuickActionTile: React.FC<QuickActionTileProps> = ({ title, description, iconName, color, onPress }) => {
   const { theme } = useTheme();
 
   return (
@@ -25,13 +26,34 @@ export const QuickActionTile: React.FC<QuickActionTileProps> = ({ title, iconNam
         }
       ]}
     >
+      {/* IKONA */}
       <View style={[styles.iconBox, { backgroundColor: color + '20' }]}> 
-        {/* + '20' dodaje przezroczystość do hex koloru */}
-        <Ionicons name={iconName} size={24} color={color} />
+        <Ionicons name={iconName} size={22} color={color} />
       </View>
-      <Text style={[styles.title, { color: theme.text }]}>{title}</Text>
+
+      {/* TEKSTY */}
+      <View style={styles.textContainer}>
+        <Text 
+          style={[styles.title, { color: theme.text }]} 
+          numberOfLines={1} 
+          adjustsFontSizeToFit={true} // TO JEST KLUCZOWE: Zmniejsza tekst zamiast ucinać
+          minimumFontScale={0.85}     // ...ale nie bardziej niż do 85%
+        >
+          {title}
+        </Text>
+        {description && (
+          <Text 
+            style={[styles.description, { color: theme.subText }]} 
+            numberOfLines={1}
+          >
+            {description}
+          </Text>
+        )}
+      </View>
+
+      {/* STRZAŁKA */}
       <View style={[styles.arrow, { backgroundColor: theme.background }]}>
-        <Ionicons name="chevron-forward" size={14} color={theme.subText} />
+        <Ionicons name="chevron-forward" size={12} color={theme.subText} />
       </View>
     </Pressable>
   );
@@ -39,35 +61,46 @@ export const QuickActionTile: React.FC<QuickActionTileProps> = ({ title, iconNam
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1, // Rozciągnij na pół ekranu
+    flex: 1, 
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
+    padding: 10, // Lekko mniejszy padding, żeby zyskać miejsce na tekst
     borderRadius: 16,
-    marginHorizontal: 5, // Odstęp między kafelkami
+    marginHorizontal: 5,
     elevation: 2,
     shadowColor: '#000',
     shadowOpacity: 0.05,
     shadowRadius: 5,
     shadowOffset: { width: 0, height: 2 },
+    height: 65, // Kompaktowa wysokość
   },
   iconBox: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 10,
   },
+  textContainer: {
+    flex: 1, 
+    justifyContent: 'center',
+    marginRight: 2,
+  },
   title: {
-    flex: 1,
     fontSize: 13,
     fontWeight: '700',
+    marginBottom: 1, 
+  },
+  description: {
+    fontSize: 10,
+    fontWeight: '500',
+    opacity: 0.8,
   },
   arrow: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
   }
