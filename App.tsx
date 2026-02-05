@@ -27,6 +27,10 @@ import MistakeReviewScreen from './src/screens/MistakeReviewScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import ContactScreen from './src/screens/ContactScreen';
 import SearchScreen from './src/screens/SearchScreen'; // <--- Upewnij się, że masz ten plik!
+import ShopScreen from './src/screens/ShopScreen';
+import NewsScreen from './src/screens/NewsScreen';
+import SupportScreen from './src/screens/SupportScreen';
+import Contact2Screen from './src/screens/ContactScreen2';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -180,6 +184,10 @@ const AppContent = () => {
         <Stack.Screen name="MistakeReview" component={MistakeReviewScreen} options={{ title: 'Trener Błędów' }} />
         <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Ustawienia' }} />
         <Stack.Screen name="Contact" component={ContactScreen} options={{ title: 'Kontakt' }} />
+        <Stack.Screen name="Sklep" component={ShopScreen} />
+        <Stack.Screen name="Aktualności" component={NewsScreen} />
+        <Stack.Screen name="Wsparcie❤️" component={SupportScreen} />
+         <Stack.Screen name="Kontakt" component={Contact2Screen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

@@ -212,17 +212,17 @@ export default function QualificationScreen({ navigation }: any) {
             <View style={styles.row}>
               <QuickActionTile 
                 title="Sklep" 
-                description="Kup Premium"  // <--- Tutaj wpisujesz opis
+                description="Wydaj punkty" // Nowy opis
                 iconName="cart" 
                 color="#E040FB" 
-                onPress={() => navigation.navigate('Settings')} 
+                onPress={() => navigation.navigate('Sklep')} 
               />
               <QuickActionTile 
                 title="Aktualności" 
                 description="Co nowego?"   // <--- Tutaj wpisujesz opis
                 iconName="newspaper" 
                 color="#FF9800" 
-                onPress={handleNewsPress} 
+                onPress={() => navigation.navigate('Aktualności')}
               />
             </View>
 
@@ -230,17 +230,17 @@ export default function QualificationScreen({ navigation }: any) {
             <View style={styles.row}>
               <QuickActionTile 
                 title="Wesprzyj nas" 
-                description="Postaw kawę"  // <--- Tutaj wpisujesz opis
+                description="Postaw nam pączka"  // <--- Tutaj wpisujesz opis
                 iconName="cafe" 
                 color="#F44336" 
-                onPress={() => navigation.navigate('Contact')} 
+                onPress={() => navigation.navigate('Wsparcie❤️')}
               />
               <QuickActionTile 
                 title="Kontakt" 
                 description="Napisz do nas" // <--- Tutaj wpisujesz opis
                 iconName="chatbubbles" 
                 color="#2196F3" 
-                onPress={() => navigation.navigate('Contact')} 
+                onPress={() => navigation.navigate('Kontakt')}
               />
             </View>
           </View>
