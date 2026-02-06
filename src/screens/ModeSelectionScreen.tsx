@@ -96,7 +96,7 @@ export default function ModeSelectionScreen({ route, navigation }: any) {
           description="Ucz się we własnym tempie. Sprawdzaj odpowiedzi na bieżąco, bez stresu."
           icon="book"
           colors={['#4facfe', '#00f2fe']} // Niebieski
-          onPress={() => navigation.navigate('Training', { examData })}
+          onPress={() => navigation.navigate('Training', { apiUrl: examData.apiUrl })}
         />
 
         {/* 2. PEŁNY EGZAMIN (40 pytań) */}
@@ -104,8 +104,13 @@ export default function ModeSelectionScreen({ route, navigation }: any) {
           title="Pełny Egzamin"
           description="Symulacja CKE. 40 pytań, 60 minut. Prawdziwe wyzwanie."
           icon="stopwatch"
-          colors={['#FF416C', '#FF4B2B']} // Czerwony
-          onPress={() => navigation.navigate('Exam', { examData, isShortExam: false })}
+          colors={['#FF416C', '#FF4B2B']}
+          onPress={() => navigation.navigate('Exam', { 
+            apiUrl: examData.apiUrl,   // <--- TUTAJ był brakujący element!
+            limit: 40, 
+            time: 60,
+            examData: examData         // Przekazujemy też cały obiekt, bo ResultScreen go potrzebuje
+          })}
         />
 
         {/* 3. SZYBKI TEST (20 pytań - NOWOŚĆ) */}
@@ -113,9 +118,13 @@ export default function ModeSelectionScreen({ route, navigation }: any) {
           title="Szybki Test"
           description="Brak czasu? 20 pytań, 30 minut. Idealne na krótką przerwę."
           icon="flash"
-          colors={['#F7971E', '#FFD200']} // Pomarańczowo-Żółty (Energia)
-          // Przekazujemy flagę isShortExam: true
-          onPress={() => navigation.navigate('Exam', { examData, isShortExam: true })}
+          colors={['#F7971E', '#FFD200']}
+          onPress={() => navigation.navigate('Exam', { 
+            apiUrl: examData.apiUrl,   // <--- I TUTAJ też
+            limit: 20, 
+            time: 30,
+            examData: examData 
+          })}
         />
 
         {/* 4. ONE LIFE */}
@@ -124,7 +133,7 @@ export default function ModeSelectionScreen({ route, navigation }: any) {
           description="Tryb Hardcore. Jeden błąd kończy grę. Jak daleko zajdziesz?"
           icon="skull"
           colors={['#434343', '#000000']} // Ciemny
-          onPress={() => navigation.navigate('OneLife', { examData })}
+          onPress={() => navigation.navigate('OneLife', { apiUrl: examData.apiUrl, examId: examData.id })}
         />
 
         {/* 5. POPRAWA BŁĘDÓW (Tylko jeśli są błędy) */}

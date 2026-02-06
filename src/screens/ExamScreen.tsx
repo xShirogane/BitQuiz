@@ -81,38 +81,63 @@ export default function ExamScreen({ route, navigation }: any) {
   };
 
  const fetchQuestions = async () => {
+    console.log('🚀 [START] Rozpoczynam pobieranie pytań...');
+    console.log('🔗 [DEBUG] URL:', apiUrl);
+
     const cacheKey = `quiz_cache_${apiUrl}`;
+    
     try {
+      if (!apiUrl) throw new Error('apiUrl is undefined or null!');
+
       const response = await fetch(apiUrl);
-      if (!response.ok) throw new Error('Błąd sieci');
+      console.log('S [STATUS] Odpowiedź serwera:', response.status);
+
+      if (!response.ok) throw new Error(`Błąd sieci: ${response.status}`);
       
       const rawQuestions: Question[] = await response.json();
-      const questionsWithImages = await cacheImages(rawQuestions);
-      
+      console.log('📦 [DATA] Pobrane pytania (ilość):', rawQuestions?.length);
+
+      if (!Array.isArray(rawQuestions)) {
+         throw new Error('Pobrane dane nie są tablicą!');
+      }
+
+      // KROK DIAGNOSTYCZNY: Tymczasowo wyłączamy cacheImages, żeby sprawdzić czy to nie on psuje.
+      // Odkomentujemy to, jak pytania tekstowe zaczną działać.
+      console.log('⚠️ [SKIP] Pomijam cacheImages dla testu...');
+      const questionsWithImages = rawQuestions; 
+      // const questionsWithImages = await cacheImages(rawQuestions); 
+
       try {
         await AsyncStorage.setItem(cacheKey, JSON.stringify(questionsWithImages));
       } catch (cacheErr) {
-        console.warn('Nie udało się zapisać cache:', cacheErr);
+        console.warn('⚠️ Nie udało się zapisać cache:', cacheErr);
       }
+
       processQuestions(questionsWithImages);
+
     } catch (err) {
-      console.log('Błąd sieci, próba trybu offline...', err);
+      console.error('❌ [ERROR] Wystąpił błąd w fetchQuestions:', err);
+      
+      // Logika Offline
+      console.log('🔄 Próba trybu offline...');
       if (!userProfile?.isPro) {
-        setError('Brak połączenia z internetem. Tryb Offline jest dostępny tylko w wersji PRO 👑.');
+        setError(`Błąd pobierania: ${err instanceof Error ? err.message : 'Nieznany błąd'}. Tryb Offline tylko dla PRO.`);
         setLoading(false);
         return;
       }
+
       try {
         const cachedData = await AsyncStorage.getItem(cacheKey);
         if (cachedData) {
+          console.log('💾 [CACHE] Załadowano z pamięci telefonu');
           const allQuestions: Question[] = JSON.parse(cachedData);
           processQuestions(allQuestions);
         } else {
-          setError('Brak internetu i brak zapisanych pytań. Połącz się raz, aby pobrać bazę.');
+          setError('Błąd: Brak internetu i brak zapisanych pytań w pamięci.');
           setLoading(false);
         }
       } catch (storageErr) {
-        setError('Wystąpił nieoczekiwany błąd przy odczycie danych.');
+        setError('Krytyczny błąd pamięci cache.');
         setLoading(false);
       }
     }
