@@ -6,8 +6,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext'; // <--- DODANO
 import { Qualification } from '../data/categories';
-import { getMistakes } from '../utils/historyManager';
+// USUNIĘTO: import { getMistakes } from '../utils/historyManager'; 
+// ZASTĄPIONO FIREBASE:
+import { db } from '../config/firebase';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 
 const { width } = Dimensions.get('window');
 
@@ -45,6 +49,7 @@ const ModeCard = ({ title, description, icon, colors, onPress, disabled = false 
 
 export default function ModeSelectionScreen({ route, navigation }: any) {
   const { theme, isDark } = useTheme();
+  const { user } = useAuth(); // <--- DODANO
   const { examData } = route.params as { examData: Qualification };
   
   const [mistakesCount, setMistakesCount] = useState(0);
@@ -52,15 +57,33 @@ export default function ModeSelectionScreen({ route, navigation }: any) {
   useFocusEffect(
     useCallback(() => {
       const checkMistakes = async () => {
+        if (!user) return;
+
         try {
-          const mistakes = await getMistakes(examData.id);
-          setMistakesCount(mistakes.length);
+          // Używamy tej samej logiki co w Trenerze Błędów (szukamy wszystkich wariantów ID)
+          const targetId = examData.id;
+          const possibleIds = [targetId, targetId.toLowerCase(), targetId.toUpperCase()];
+          const uniqueIds = [...new Set(possibleIds)];
+
+          //console.log(`📊 [MENU] Sprawdzam błędy dla ID: ${JSON.stringify(uniqueIds)}`);
+
+          const q = query(
+             collection(db, 'users', user.uid, 'mistakes'),
+             where('examId', 'in', uniqueIds)
+          );
+          
+          const snapshot = await getDocs(q);
+          const count = snapshot.size;
+          
+         // console.log(`✅ [MENU] Znaleziono błędów: ${count}`);
+          setMistakesCount(count);
+
         } catch (e) {
-          console.log("Błąd sprawdzania błędów:", e);
+         // console.log("Błąd sprawdzania błędów:", e);
         }
       };
       checkMistakes();
-    }, [examData.id])
+    }, [examData.id, user])
   );
 
   return (
@@ -106,21 +129,21 @@ export default function ModeSelectionScreen({ route, navigation }: any) {
           icon="stopwatch"
           colors={['#FF416C', '#FF4B2B']}
           onPress={() => navigation.navigate('Exam', { 
-            apiUrl: examData.apiUrl,   // <--- TUTAJ był brakujący element!
+            apiUrl: examData.apiUrl,   
             limit: 40, 
             time: 60,
-            examData: examData         // Przekazujemy też cały obiekt, bo ResultScreen go potrzebuje
+            examData: examData         
           })}
         />
 
-        {/* 3. SZYBKI TEST (20 pytań - NOWOŚĆ) */}
+        {/* 3. SZYBKI TEST (20 pytań) */}
         <ModeCard
           title="Szybki Test"
           description="Brak czasu? 20 pytań, 30 minut. Idealne na krótką przerwę."
           icon="flash"
           colors={['#F7971E', '#FFD200']}
           onPress={() => navigation.navigate('Exam', { 
-            apiUrl: examData.apiUrl,   // <--- I TUTAJ też
+            apiUrl: examData.apiUrl,   
             limit: 20, 
             time: 30,
             examData: examData 
@@ -136,7 +159,7 @@ export default function ModeSelectionScreen({ route, navigation }: any) {
           onPress={() => navigation.navigate('OneLife', { apiUrl: examData.apiUrl, examId: examData.id })}
         />
 
-        {/* 5. POPRAWA BŁĘDÓW (Tylko jeśli są błędy) */}
+        {/* 5. POPRAWA BŁĘDÓW (Tylko jeśli są błędy w bazie) */}
         {mistakesCount > 0 && (
           <ModeCard
             title="Poprawa Błędów"

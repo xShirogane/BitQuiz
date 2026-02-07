@@ -1,26 +1,79 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../../App';
 import { useAuth } from '../context/AuthContext';
-import { useTheme } from '../context/ThemeContext'; // <--- IMPORT
+import { useTheme } from '../context/ThemeContext';
 import { db } from '../config/firebase';
 import { collection, addDoc, serverTimestamp, writeBatch, doc, increment } from 'firebase/firestore';
+import { saveMistakes } from '../utils/historyManager';
+// 👇 1. NOWY IMPORT DO OBSŁUGI SERII
+import { completeDailyExam } from '../utils/streakManager';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'Result'>;
+// DEFINICJA INTERFEJSU PYTANIA
+interface Question {
+  id: number;
+  text: string;
+  answers: string[];
+  correctAnswerIndex: number | null;
+  media?: any;
+}
 
-export default function ResultScreen({ route, navigation }: Props) {
+// DEFINICJA PARAMETRÓW EKRANU
+type ResultScreenProps = {
+  route: {
+    params: {
+      score: number;
+      total: number;
+      questions: Question[];
+      userAnswers: (number | null)[];
+      mode: string;
+      examId?: string;
+    };
+  };
+  navigation: any;
+};
+
+export default function ResultScreen({ route, navigation }: ResultScreenProps) {
   const { score, total, questions, userAnswers, mode, examId } = route.params; 
   const { user } = useAuth();
-  const { theme } = useTheme(); // <--- UŻYCIE
+  const { theme } = useTheme();
   const savedRef = useRef(false);
 
   useEffect(() => {
-    // ... (TWOJA LOGIKA ZAPISU DO FIREBASE - BEZ ZMIAN) ...
     const saveResult = async () => {
-      if (!user || savedRef.current) return;
+      // Zabezpieczenie przed podwójnym wykonaniem
+      if (savedRef.current) return;
       savedRef.current = true;
+
+      // --- 1. ZALICZANIE SERII (STREAK) ---
+      // Logika: Jeśli to standardowy egzamin (min. 40 pytań) i nie jest to tryb onelife -> zalicz serię
+      if (total >= 40 && mode !== 'onelife') {
+        console.log('🔥 Próba zaliczenia dziennej serii...');
+        try {
+           const streakData = await completeDailyExam();
+           //console.log('✅ Seria zaktualizowana! Nowy licznik:', streakData.currentStreak);
+        } catch (streakError) {
+           //console.error('❌ Błąd aktualizacji serii:', streakError);
+        }
+      }
+
+      // --- 2. OBSŁUGA BŁĘDÓW (LOCAL STORAGE) ---
+      const wrongQuestionIds: number[] = [];
+      questions.forEach((q, index) => {
+        if (q && userAnswers[index] !== q.correctAnswerIndex) {
+          wrongQuestionIds.push(q.id);
+        }
+      });
+
+      if (wrongQuestionIds.length > 0) {
+        console.log('💾 Zapisuję lokalnie błędy:', wrongQuestionIds.length);
+        await saveMistakes(examId || 'general', wrongQuestionIds);
+      }
+
+      // --- 3. ZAPIS FIREBASE ---
+      if (!user) return;
+
       try {
+        // Zapis historii wyniku
         const historyData = {
           score, total, percentage: total > 0 ? Math.round((score / total) * 100) : 0,
           mode: mode || 'standard', date: serverTimestamp(), examId,
@@ -28,9 +81,10 @@ export default function ResultScreen({ route, navigation }: Props) {
         };
         await addDoc(collection(db, 'users', user.uid, 'history'), historyData);
         
-        // Trener błędów
+        // Zapis do Trenera Błędów (Firebase)
         const batch = writeBatch(db);
         let mistakeCount = 0;
+        
         questions.forEach((q, index) => {
           const userAnswerIndex = userAnswers[index];
           if (q && userAnswerIndex !== q.correctAnswerIndex) {
@@ -46,13 +100,13 @@ export default function ResultScreen({ route, navigation }: Props) {
           }
         });
         if (mistakeCount > 0) await batch.commit();
-      } catch (error) { console.error(error); }
+      } catch (error) { console.error("Błąd zapisu Firebase:", error); }
     };
+    
     saveResult();
   }, [user, score, total, mode, examId, questions, userAnswers]);
 
   if (mode === 'onelife') {
-    // OneLife ma swój unikalny ciemny styl, ale przycisk powrotu dostosujemy
     return (
       <View style={[styles.darkContainer, { backgroundColor: '#1c1c1e' }]}>
         <View style={styles.gameOverCard}>
@@ -74,7 +128,6 @@ export default function ResultScreen({ route, navigation }: Props) {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* KARTA WYNIKU */}
         <View style={[styles.card, isPassed ? styles.cardSuccess : styles.cardFail, { backgroundColor: theme.card }]}>
           <Text style={[styles.resultTitle, { color: theme.text }]}>{isPassed ? "ZDAŁEŚ!" : "NIEZALICZONY"}</Text>
           <Text style={[styles.scoreText, { color: theme.text }]}>{score} / {total}</Text>
@@ -99,7 +152,6 @@ export default function ResultScreen({ route, navigation }: Props) {
           return (
             <View key={index} style={[
               styles.questionBox, 
-              // W trybie ciemnym używamy ciemnego tła z kolorową ramką
               { backgroundColor: theme.card, borderColor: isCorrect ? '#4CAF50' : theme.danger }
             ]}>
               <Text style={[styles.questionText, { color: theme.text }]}>{index + 1}. {q.text}</Text>
@@ -125,7 +177,6 @@ export default function ResultScreen({ route, navigation }: Props) {
         <View style={{ height: 80 }} />
       </ScrollView>
 
-      {/* FOOTER */}
       <View style={[styles.footer, { backgroundColor: theme.card, borderTopColor: theme.border }]}>
         <TouchableOpacity style={[styles.button, { backgroundColor: theme.primary }]} onPress={() => navigation.popToTop()}>
           <Text style={styles.buttonText}>Wróć do Menu</Text>
