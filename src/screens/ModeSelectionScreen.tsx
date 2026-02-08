@@ -65,7 +65,7 @@ export default function ModeSelectionScreen({ route, navigation }: any) {
           const possibleIds = [targetId, targetId.toLowerCase(), targetId.toUpperCase()];
           const uniqueIds = [...new Set(possibleIds)];
 
-          //console.log(`📊 [MENU] Sprawdzam błędy dla ID: ${JSON.stringify(uniqueIds)}`);
+          console.log(`📊 [MENU] Sprawdzam błędy dla ID: ${JSON.stringify(uniqueIds)}`);
 
           const q = query(
              collection(db, 'users', user.uid, 'mistakes'),
@@ -75,11 +75,11 @@ export default function ModeSelectionScreen({ route, navigation }: any) {
           const snapshot = await getDocs(q);
           const count = snapshot.size;
           
-         // console.log(`✅ [MENU] Znaleziono błędów: ${count}`);
+         console.log(`✅ [MENU] Znaleziono błędów: ${count}`);
           setMistakesCount(count);
 
         } catch (e) {
-         // console.log("Błąd sprawdzania błędów:", e);
+         console.log("Błąd sprawdzania błędów:", e);
         }
       };
       checkMistakes();
@@ -110,6 +110,15 @@ export default function ModeSelectionScreen({ route, navigation }: any) {
             </Text>
           </View>
         </View>
+
+        <ModeCard
+          title="Statystyki"
+          description="Sprawdź swoje postępy, historię wyników i skuteczność w tej kwalifikacji."
+          icon="bar-chart"
+          colors={['#302b63', '#24243e']} // Elegancki, ciemny granat (kojarzy się z danymi/profesjonalizmem)
+          // Alternatywny jaśniejszy gradient: ['#4568DC', '#B06AB3']
+          onPress={() => navigation.navigate('Statistics', { examData })} 
+        />
 
         <Text style={[styles.sectionLabel, { color: theme.subText }]}>DOSTĘPNE TRYBY</Text>
 

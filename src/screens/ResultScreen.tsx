@@ -50,9 +50,9 @@ export default function ResultScreen({ route, navigation }: ResultScreenProps) {
         console.log('🔥 Próba zaliczenia dziennej serii...');
         try {
            const streakData = await completeDailyExam();
-           //console.log('✅ Seria zaktualizowana! Nowy licznik:', streakData.currentStreak);
+           console.log('✅ Seria zaktualizowana! Nowy licznik:', streakData.currentStreak);
         } catch (streakError) {
-           //console.error('❌ Błąd aktualizacji serii:', streakError);
+           console.error('❌ Błąd aktualizacji serii:', streakError);
         }
       }
 

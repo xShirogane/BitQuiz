@@ -63,7 +63,7 @@ export default function MistakeReviewScreen({ route, navigation }: any) {
         // Usuwamy duplikaty (np. jeśli targetId to już 'inf03')
         const uniqueIds = [...new Set(possibleIds)];
 
-        //console.log(`🔍 Szukam błędów dla ID: ${JSON.stringify(uniqueIds)}...`);
+        console.log(`🔍 Szukam błędów dla ID: ${JSON.stringify(uniqueIds)}...`);
 
         const q = query(
           collection(db, 'users', user.uid, 'mistakes'),
@@ -74,18 +74,18 @@ export default function MistakeReviewScreen({ route, navigation }: any) {
         const loaded: any[] = [];
         qSnap.forEach((d) => loaded.push({ docId: d.id, ...d.data() }));
 
-      //  console.log(`✅ Znaleziono: ${loaded.length} błędów.`);
+        console.log(`✅ Znaleziono: ${loaded.length} błędów.`);
 
         if (loaded.length === 0) {
             // OSTATNIA DESKA RATUNKU: DIAGNOSTYKA
             // Jeśli nadal 0, pobierzmy 1 dowolny błąd, żeby zobaczyć jak wygląda w bazie
-           // console.log("⚠️ Nadal 0? Pobieram przykładowy błąd do analizy...");
+           console.log("⚠️ Nadal 0? Pobieram przykładowy błąd do analizy...");
             const debugQ = query(collection(db, 'users', user.uid, 'mistakes'));
             const debugSnap = await getDocs(debugQ);
             if (!debugSnap.empty) {
-                //console.log("💡 Przykładowy błąd z bazy (sprawdź pole examId):", debugSnap.docs[0].data());
+              console.log("💡 Przykładowy błąd z bazy (sprawdź pole examId):", debugSnap.docs[0].data());
             } else {
-               // console.log("💀 Baza błędów jest całkowicie pusta.");
+              console.log("💀 Baza błędów jest całkowicie pusta.");
             }
         }
 

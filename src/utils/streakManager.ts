@@ -1,62 +1,69 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const STREAK_KEY = 'user_streak_v2'; // Zmieniam klucz na v2, żeby wyczyścić stare błędy
+// Zmieniamy klucz na v4, żeby odciąć się od błędnych zapisów
+const STREAK_KEY = 'user_streak_v4';
 
 export interface StreakData {
   currentStreak: number;
   bestStreak: number;
-  lastVisitDate: string | null; 
+  lastVisitDate: string | null; // Format: YYYY-MM-DD (Lokalny)
   didPracticeToday: boolean;
 }
 
-const getTodayDate = (): string => {
-  return new Date().toISOString().split('T')[0];
+// ✅ FIX: Pobieranie daty lokalnej (rozwiązuje problem 00:30 w nocy)
+const getLocalYMD = (date: Date = new Date()): string => {
+  const year = date.getFullYear();
+  // Miesiące są indeksowane od 0, więc dodajemy 1
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getTodayDate = (): string => getLocalYMD(new Date());
+
+const getYesterdayDate = (): string => {
+  const d = new Date();
+  d.setDate(d.getDate() - 1); // Odejmujemy 1 dzień kalendarzowy
+  return getLocalYMD(d);
 };
 
 /**
- * TYLKO ODCZYT I RESET:
- * Ta funkcja sprawdza, czy użytkownik nie pominął dnia.
- * Jeśli pominął -> resetuje serię do 0.
- * Ale NIE zwiększa serii za samo wejście.
+ * SPRAWDZANIE STATUSU PRZY STARCIE APLIKACJI
  */
 export const checkStreakStatus = async (): Promise<StreakData> => {
   try {
     const json = await AsyncStorage.getItem(STREAK_KEY);
     const today = getTodayDate();
+    const yesterday = getYesterdayDate();
     
-    // Domyślny stan (nowy użytkownik)
-    let data: StreakData = json 
-      ? JSON.parse(json) 
-      : { currentStreak: 0, bestStreak: 0, lastVisitDate: null, didPracticeToday: false };
-
-    // Jeśli brak daty (pierwsze uruchomienie), zwracamy zera
-    if (!data.lastVisitDate) {
-      return data;
+    // Domyślny stan dla nowego usera
+    if (!json) {
+      return { currentStreak: 0, bestStreak: 0, lastVisitDate: null, didPracticeToday: false };
     }
 
-    // Jeśli data ostatniej aktywności to DZISIAJ -> nic nie zmieniamy, zwracamy stan
+    let data: StreakData = JSON.parse(json);
+
+    // 1. Jeśli ostatnia wizyta to DZISIAJ -> Wszystko OK
     if (data.lastVisitDate === today) {
       return data;
     }
 
-    // Jeśli data jest inna niż dzisiaj, sprawdzamy czy to było wczoraj
-    const lastDate = new Date(data.lastVisitDate);
-    const currDate = new Date(today);
-    const diffTime = Math.abs(currDate.getTime() - lastDate.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
-
-    if (diffDays > 1) {
-      // Ups, minęło więcej niż 1 dzień -> RESET SERII
-      data.currentStreak = 0;
+    // 2. Jeśli ostatnia wizyta to WCZORAJ -> Seria trwa, ale dziś jeszcze nie zrobione
+    if (data.lastVisitDate === yesterday) {
       data.didPracticeToday = false;
-      // Nie aktualizujemy daty tutaj, data zaktualizuje się dopiero jak user zrobi egzamin!
-      await AsyncStorage.setItem(STREAK_KEY, JSON.stringify(data));
-    } else {
-      // Był wczoraj, więc seria jest bezpieczna, ale na dziś jeszcze nie zaliczona
-      data.didPracticeToday = false; 
-      await AsyncStorage.setItem(STREAK_KEY, JSON.stringify(data));
+      // Nie musimy zapisywać do AsyncStorage, wystarczy zwrócić zaktualizowany obiekt w pamięci
+      return data;
     }
 
+    // 3. Jeśli ostatnia wizyta była DAWNIEJ niż wczoraj -> RESET SERII 😢
+    // Ale tylko jeśli mamy jakąś datę (nie jest to null)
+    if (data.lastVisitDate && data.lastVisitDate !== yesterday) {
+        console.log(`❌ Reset serii! Ostatnia wizyta: ${data.lastVisitDate}, Wczoraj: ${yesterday}`);
+        data.currentStreak = 0;
+        data.didPracticeToday = false;
+        await AsyncStorage.setItem(STREAK_KEY, JSON.stringify(data));
+    }
+    
     return data;
   } catch (error) {
     console.error('Błąd sprawdzania serii:', error);
@@ -65,31 +72,37 @@ export const checkStreakStatus = async (): Promise<StreakData> => {
 };
 
 /**
- * ZALICZENIE ZADANIA:
- * Wywołujemy to TYLKO po ukończeniu egzaminu 40 pytań.
+ * ZALICZANIE EGZAMINU (Wywołaj po sukcesie >= 40 pytań)
  */
 export const completeDailyExam = async (): Promise<StreakData> => {
   try {
     const json = await AsyncStorage.getItem(STREAK_KEY);
     const today = getTodayDate();
+    const yesterday = getYesterdayDate();
     
     let data: StreakData = json 
       ? JSON.parse(json) 
       : { currentStreak: 0, bestStreak: 0, lastVisitDate: null, didPracticeToday: false };
 
-    // Jeśli już dziś zaliczył -> nic nie robimy
+    // Jeśli już dziś zaliczone -> nie podbijaj licznika drugi raz
     if (data.lastVisitDate === today && data.didPracticeToday) {
+      console.log('⚠️ Dzisiaj już zaliczone.');
       return data;
     }
 
-    // ZALICZAMY SERIĘ!
-    // Jeśli seria była zerowa, ustawiamy na 1.
-    // Jeśli była kontynuowana (np. wczoraj), dodajemy 1.
-    
-    // Tu ważny moment: funkcja checkStreakStatus już powinna była wyzerować serię
-    // jeśli user nie był wczoraj. Więc tutaj po prostu dodajemy +1.
-    
-    data.currentStreak += 1;
+    // LOGIKA ZWIĘKSZANIA SERII
+    if (data.lastVisitDate === yesterday) {
+        // Kontynuacja z wczoraj
+        data.currentStreak += 1;
+    } else if (data.lastVisitDate === today) {
+        // (Teoretycznie obsłużone wyżej, ale dla pewności)
+        // Nic nie rób z licznikiem, tylko oznacz jako done
+    } else {
+        // Przerwa w serii lub pierwszy raz -> Start od 1
+        data.currentStreak = 1;
+    }
+
+    // Aktualizacja rekordu
     if (data.currentStreak > data.bestStreak) {
       data.bestStreak = data.currentStreak;
     }
@@ -98,10 +111,28 @@ export const completeDailyExam = async (): Promise<StreakData> => {
     data.didPracticeToday = true;
 
     await AsyncStorage.setItem(STREAK_KEY, JSON.stringify(data));
+    console.log(`✅ SUKCES! Seria: ${data.currentStreak}, Data: ${today}`);
     return data;
 
   } catch (error) {
     console.error('Błąd zaliczania serii:', error);
+    // Fallback w razie błędu krytycznego
     return { currentStreak: 1, bestStreak: 1, lastVisitDate: getTodayDate(), didPracticeToday: true };
   }
+};
+
+/**
+ * NARZĘDZIE DEWELOPERSKIE (Tylko do testów/naprawy)
+ * Wywołaj to raz np. w App.tsx, żeby ustawić sobie serię na 2, jeśli czujesz się oszukany przez błąd ;)
+ */
+export const dev_forceStreak = async (days: number) => {
+    const today = getTodayDate();
+    const data: StreakData = {
+        currentStreak: days,
+        bestStreak: days,
+        lastVisitDate: today,
+        didPracticeToday: true
+    };
+    await AsyncStorage.setItem(STREAK_KEY, JSON.stringify(data));
+    console.log(`🛠️ WYMUSZONO SERIĘ: ${days}`);
 };
