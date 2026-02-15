@@ -188,6 +188,7 @@ const AppContent = () => {
         <Stack.Screen name="Aktualności" component={NewsScreen} />
         <Stack.Screen name="Wsparcie❤️" component={SupportScreen} />
          <Stack.Screen name="Kontakt" component={Contact2Screen} />
+         <Stack.Screen name="ExamReviewScreen" component={ExamReviewScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

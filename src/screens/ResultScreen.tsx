@@ -5,10 +5,9 @@ import { useTheme } from '../context/ThemeContext';
 import { db } from '../config/firebase';
 import { collection, addDoc, serverTimestamp, writeBatch, doc, increment } from 'firebase/firestore';
 import { saveMistakes } from '../utils/historyManager';
-// 👇 1. NOWY IMPORT DO OBSŁUGI SERII
 import { completeDailyExam } from '../utils/streakManager';
+import { Ionicons } from '@expo/vector-icons'; // Dodane do ikony czasu
 
-// DEFINICJA INTERFEJSU PYTANIA
 interface Question {
   id: number;
   text: string;
@@ -17,7 +16,6 @@ interface Question {
   media?: any;
 }
 
-// DEFINICJA PARAMETRÓW EKRANU
 type ResultScreenProps = {
   route: {
     params: {
@@ -27,30 +25,30 @@ type ResultScreenProps = {
       userAnswers: (number | null)[];
       mode: string;
       examId?: string;
+      timeSpent?: number; // 👈 1. DODANE: Odbieranie czasu
     };
   };
   navigation: any;
 };
 
 export default function ResultScreen({ route, navigation }: ResultScreenProps) {
-  const { score, total, questions, userAnswers, mode, examId } = route.params; 
+  // 👇 2. DODANE: timeSpent w destrukcji
+  const { score, total, questions, userAnswers, mode, examId, timeSpent } = route.params; 
   const { user } = useAuth();
   const { theme } = useTheme();
   const savedRef = useRef(false);
 
   useEffect(() => {
     const saveResult = async () => {
-      // Zabezpieczenie przed podwójnym wykonaniem
       if (savedRef.current) return;
       savedRef.current = true;
 
       // --- 1. ZALICZANIE SERII (STREAK) ---
-      // Logika: Jeśli to standardowy egzamin (min. 40 pytań) i nie jest to tryb onelife -> zalicz serię
       if (total >= 40 && mode !== 'onelife') {
         console.log('🔥 Próba zaliczenia dziennej serii...');
         try {
            const streakData = await completeDailyExam();
-           console.log('✅ Seria zaktualizowana! Nowy licznik:', streakData.currentStreak);
+           console.log('✅ Seria zaktualizowana!', streakData);
         } catch (streakError) {
            console.error('❌ Błąd aktualizacji serii:', streakError);
         }
@@ -65,7 +63,6 @@ export default function ResultScreen({ route, navigation }: ResultScreenProps) {
       });
 
       if (wrongQuestionIds.length > 0) {
-        console.log('💾 Zapisuję lokalnie błędy:', wrongQuestionIds.length);
         await saveMistakes(examId || 'general', wrongQuestionIds);
       }
 
@@ -73,15 +70,41 @@ export default function ResultScreen({ route, navigation }: ResultScreenProps) {
       if (!user) return;
 
       try {
-        // Zapis historii wyniku
+        const detailedAnswers = questions.map((q, index) => {
+          const userAnswerIndex = userAnswers[index];
+          if (!q) return null;
+
+          return {
+            questionId: q.id,
+            questionText: q.text,
+            userAnswerIndex: userAnswerIndex ?? null,
+            correctAnswerIndex: q.correctAnswerIndex,
+            isCorrect: userAnswerIndex === q.correctAnswerIndex,
+            answerOptions: q.answers
+          };
+        }).filter(item => item !== null);
+
+        const percentage = total > 0 ? Math.round((score / total) * 100) : 0;
+
         const historyData = {
-          score, total, percentage: total > 0 ? Math.round((score / total) * 100) : 0,
-          mode: mode || 'standard', date: serverTimestamp(), examId,
-          details: { questions, userAnswers }
+          examId: examId || 'unknown',
+          userId: user.uid,
+          date: serverTimestamp(),
+          timestamp: Date.now(),
+          mode: mode || 'standard',
+          score: score,
+          totalQuestions: total,
+          passed: percentage >= 50,
+          
+          // 👇 3. DODANE: Zapis czasu do bazy (to naprawi statystyki)
+          timeSpentSeconds: timeSpent || 0, 
+
+          answers: detailedAnswers
         };
+
         await addDoc(collection(db, 'users', user.uid, 'history'), historyData);
         
-        // Zapis do Trenera Błędów (Firebase)
+        // Zapis do Trenera Błędów
         const batch = writeBatch(db);
         let mistakeCount = 0;
         
@@ -132,6 +155,17 @@ export default function ResultScreen({ route, navigation }: ResultScreenProps) {
           <Text style={[styles.resultTitle, { color: theme.text }]}>{isPassed ? "ZDAŁEŚ!" : "NIEZALICZONY"}</Text>
           <Text style={[styles.scoreText, { color: theme.text }]}>{score} / {total}</Text>
           <Text style={styles.percentText}>{percentage}%</Text>
+
+          {/* 👇 4. DODANE: Wyświetlanie czasu użytkownikowi */}
+          {timeSpent !== undefined && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10, opacity: 0.7 }}>
+              <Ionicons name="time-outline" size={18} color={theme.text} />
+              <Text style={{ color: theme.text, marginLeft: 5, fontSize: 16 }}>
+                Czas: {Math.floor(timeSpent / 60)}m {timeSpent % 60}s
+              </Text>
+            </View>
+          )}
+
         </View>
         
         <View style={[styles.infoBox, { backgroundColor: theme.card, borderColor: theme.primary }]}>

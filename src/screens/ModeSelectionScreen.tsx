@@ -6,10 +6,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../context/ThemeContext';
-import { useAuth } from '../context/AuthContext'; // <--- DODANO
+import { useAuth } from '../context/AuthContext';
 import { Qualification } from '../data/categories';
-// USUNIĘTO: import { getMistakes } from '../utils/historyManager'; 
-// ZASTĄPIONO FIREBASE:
 import { db } from '../config/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 
@@ -49,7 +47,10 @@ const ModeCard = ({ title, description, icon, colors, onPress, disabled = false 
 
 export default function ModeSelectionScreen({ route, navigation }: any) {
   const { theme, isDark } = useTheme();
-  const { user } = useAuth(); // <--- DODANO
+  
+  // 👇 1. POPRAWKA: Dodano userProfile z useAuth
+  const { user, userProfile } = useAuth(); 
+  
   const { examData } = route.params as { examData: Qualification };
   
   const [mistakesCount, setMistakesCount] = useState(0);
@@ -60,7 +61,6 @@ export default function ModeSelectionScreen({ route, navigation }: any) {
         if (!user) return;
 
         try {
-          // Używamy tej samej logiki co w Trenerze Błędów (szukamy wszystkich wariantów ID)
           const targetId = examData.id;
           const possibleIds = [targetId, targetId.toLowerCase(), targetId.toUpperCase()];
           const uniqueIds = [...new Set(possibleIds)];
@@ -68,18 +68,18 @@ export default function ModeSelectionScreen({ route, navigation }: any) {
           console.log(`📊 [MENU] Sprawdzam błędy dla ID: ${JSON.stringify(uniqueIds)}`);
 
           const q = query(
-             collection(db, 'users', user.uid, 'mistakes'),
-             where('examId', 'in', uniqueIds)
+              collection(db, 'users', user.uid, 'mistakes'),
+              where('examId', 'in', uniqueIds)
           );
           
           const snapshot = await getDocs(q);
           const count = snapshot.size;
           
-         console.log(`✅ [MENU] Znaleziono błędów: ${count}`);
+          console.log(`✅ [MENU] Znaleziono błędów: ${count}`);
           setMistakesCount(count);
 
         } catch (e) {
-         console.log("Błąd sprawdzania błędów:", e);
+          console.log("Błąd sprawdzania błędów:", e);
         }
       };
       checkMistakes();
@@ -111,14 +111,16 @@ export default function ModeSelectionScreen({ route, navigation }: any) {
           </View>
         </View>
 
-        <ModeCard
-          title="Statystyki"
-          description="Sprawdź swoje postępy, historię wyników i skuteczność w tej kwalifikacji."
-          icon="bar-chart"
-          colors={['#302b63', '#24243e']} // Elegancki, ciemny granat (kojarzy się z danymi/profesjonalizmem)
-          // Alternatywny jaśniejszy gradient: ['#4568DC', '#B06AB3']
-          onPress={() => navigation.navigate('Statistics', { examData })} 
-        />
+        {/* 👇 2. POPRAWKA: Kafelek Statystyk owinięty warunkiem PRO */}
+        {userProfile?.isPro && (
+          <ModeCard
+            title="Statystyki"
+            description="Sprawdź swoje postępy, historię wyników i skuteczność w tej kwalifikacji."
+            icon="bar-chart"
+            colors={['#302b63', '#24243e']} 
+            onPress={() => navigation.navigate('Statistics', { examData })} 
+          />
+        )}
 
         <Text style={[styles.sectionLabel, { color: theme.subText }]}>DOSTĘPNE TRYBY</Text>
 
@@ -127,7 +129,7 @@ export default function ModeSelectionScreen({ route, navigation }: any) {
           title="Tryb Nauki"
           description="Ucz się we własnym tempie. Sprawdzaj odpowiedzi na bieżąco, bez stresu."
           icon="book"
-          colors={['#4facfe', '#00f2fe']} // Niebieski
+          colors={['#4facfe', '#00f2fe']} 
           onPress={() => navigation.navigate('Training', { apiUrl: examData.apiUrl })}
         />
 
@@ -164,17 +166,17 @@ export default function ModeSelectionScreen({ route, navigation }: any) {
           title="One Life"
           description="Tryb Hardcore. Jeden błąd kończy grę. Jak daleko zajdziesz?"
           icon="skull"
-          colors={['#434343', '#000000']} // Ciemny
+          colors={['#434343', '#000000']} 
           onPress={() => navigation.navigate('OneLife', { apiUrl: examData.apiUrl, examId: examData.id })}
         />
 
         {/* 5. POPRAWA BŁĘDÓW (Tylko jeśli są błędy w bazie) */}
-        {mistakesCount > 0 && (
+        {userProfile?.isPro && (
           <ModeCard
             title="Poprawa Błędów"
             description={`Masz ${mistakesCount} pytań do poprawy. Powtórz to, co sprawia trudność.`}
             icon="refresh-circle"
-            colors={['#11998e', '#38ef7d']} // Zielony
+            colors={['#11998e', '#38ef7d']} 
             onPress={() => navigation.navigate('MistakeReview', { examData })}
           />
         )}
@@ -184,7 +186,7 @@ export default function ModeSelectionScreen({ route, navigation }: any) {
           title="Pojedynek 1vs1"
           description="Rzuć wyzwanie znajomemu na jednym telefonie."
           icon="game-controller"
-          colors={['#DA22FF', '#9733EE']} // Fioletowy
+          colors={['#DA22FF', '#9733EE']} 
           onPress={() => navigation.navigate('MultiplayerSetup', { examData })}
         />
 

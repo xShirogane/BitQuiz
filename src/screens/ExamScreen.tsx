@@ -38,7 +38,7 @@ export interface Question {
 }
 
 export default function ExamScreen({ route, navigation }: any) {
-  const { apiUrl, limit, time } = route.params; 
+  const { apiUrl, limit, time, examData } = route.params; // Dodałem examData tutaj dla czytelności
   const { userProfile } = useAuth();
   const { theme } = useTheme(); 
   
@@ -102,7 +102,6 @@ export default function ExamScreen({ route, navigation }: any) {
       }
 
       // KROK DIAGNOSTYCZNY: Tymczasowo wyłączamy cacheImages, żeby sprawdzić czy to nie on psuje.
-      // Odkomentujemy to, jak pytania tekstowe zaczną działać.
       console.log('⚠️ [SKIP] Pomijam cacheImages dla testu...');
       const questionsWithImages = rawQuestions; 
       // const questionsWithImages = await cacheImages(rawQuestions); 
@@ -176,6 +175,7 @@ export default function ExamScreen({ route, navigation }: any) {
     }
   };
 
+  // 👇 NAPRAWIONA FUNKCJA KOŃCZĄCA EGZAMIN
   const finishExam = () => {
     let score = 0;
     questions.forEach((q, index) => {
@@ -184,14 +184,24 @@ export default function ExamScreen({ route, navigation }: any) {
       }
     });
 
-    const { examData } = route.params; 
+    // 1. Obliczamy całkowity czas trwania egzaminu (w sekundach)
+    // 'time' to czas w minutach z parametrów (np. 60), domyślnie 60
+    const totalDurationSeconds = (time || 60) * 60;
+    
+    // 2. Obliczamy ile sekund upłynęło
+    // (Czas początkowy) - (Ile zostało na liczniku)
+    const timeSpent = totalDurationSeconds - timeLeft;
+
     navigation.replace('Result', {
       score: score,
       total: questions.length,
       questions: questions,
       userAnswers: userAnswers,
       mode: 'exam',
-      examId: examData.id 
+      // Używamy examData z params lub pustego stringa jako fallback
+      examId: examData?.id || 'unknown',
+      // 👇 Przekazujemy obliczony czas
+      timeSpent: timeSpent 
     });
   };
 

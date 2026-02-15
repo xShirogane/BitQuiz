@@ -1,82 +1,135 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { useTheme } from '../context/ThemeContext'; // <--- Theme
-import MultiplayerGameScreen from './MultiplayerGameScreen';
-import MultiplayerSetupScreen from './MultiplayerSetupScreen';
-import QualificationScreen from './QualificationScreen';
-import StatisticsScreen from './StatisticsScreen';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '../context/ThemeContext';
+import { ExamHistoryEntry } from '../types/statistics';
 
-export default function ExamReviewScreen({ route, navigation }: any) {
-  const { questions, userAnswers, score, total } = route.params;
+const ExamReviewScreen = () => {
   const { theme } = useTheme();
+  const navigation = useNavigation();
+  const route = useRoute<any>();
+  
+  // Pobieramy wynik przekazany z ekranu statystyk
+  const result: ExamHistoryEntry = route.params?.result;
+
+  if (!result) {
+    return (
+      <View style={[styles.container, { backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={{ color: theme.text }}>Błąd ładowania wyników.</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={[styles.header, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
-         <Text style={[styles.headerTitle, { color: theme.text }]}>Podgląd Testu</Text>
-         <Text style={[styles.headerScore, { color: theme.primary }]}>Wynik: {score}/{total}</Text>
+      {/* Header */}
+      <View style={[styles.header, { borderBottomColor: theme.border }]}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={24} color={theme.text} />
+        </TouchableOpacity>
+        <View>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>Podgląd Egzaminu</Text>
+          <Text style={[styles.headerDate, { color: theme.subText }]}>
+            {new Date(result.timestamp).toLocaleString()}
+          </Text>
+        </View>
+        <View style={{ width: 40 }} /> 
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {questions.map((q: any, index: number) => {
-          const userAnswerIndex = userAnswers[index];
-          const isCorrect = userAnswerIndex === q.correctAnswerIndex;
-          const isSkipped = userAnswerIndex === null;
+      <ScrollView contentContainerStyle={styles.content}>
+        {/* Podsumowanie */}
+        <View style={[styles.summaryCard, { backgroundColor: theme.card }]}>
+          <Text style={[styles.score, { color: result.passed ? theme.success : theme.danger }]}>
+            {result.score} / {result.totalQuestions}
+          </Text>
+          <Text style={[styles.status, { color: theme.subText }]}>
+            {result.passed ? 'Egzamin Zdany' : 'Egzamin Niezdany'}
+          </Text>
+        </View>
 
-          return (
-            <View key={index} style={[
-              styles.questionBox, 
-              { backgroundColor: theme.card, borderColor: isCorrect ? '#4CAF50' : theme.danger }
-            ]}>
-              <Text style={[styles.questionText, { color: theme.text }]}>{index + 1}. {q.text}</Text>
-              
-              <View style={styles.answerRow}>
-                <Text style={styles.label}>Twoja odp:</Text>
-                <Text style={[
-                  styles.answerText, 
-                  isCorrect ? styles.textGreen : styles.textRed,
-                  isSkipped && styles.textGray
-                ]}>
-                  {isSkipped 
-                    ? "(Brak odpowiedzi)" 
-                    : `${String.fromCharCode(65 + userAnswerIndex!)}. ${q.answers[userAnswerIndex!]}`}
-                </Text>
-              </View>
-
-              {!isCorrect && q.correctAnswerIndex !== null && (
-                <View style={styles.answerRow}>
-                  <Text style={styles.label}>Poprawna:</Text>
-                  <Text style={[styles.answerText, styles.textGreen]}>
-                    {String.fromCharCode(65 + q.correctAnswerIndex)}. {q.answers[q.correctAnswerIndex]}
-                  </Text>
-                </View>
+        {/* Lista Pytań */}
+        <Text style={[styles.sectionHeader, { color: theme.text }]}>Szczegóły pytań:</Text>
+        
+        {result.answers?.map((item, index) => (
+          <View key={index} style={[styles.questionCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <View style={styles.questionHeader}>
+              <Text style={[styles.qIndex, { color: theme.subText }]}>#{index + 1}</Text>
+              {item.isCorrect ? (
+                <Ionicons name="checkmark-circle" size={24} color={theme.success} />
+              ) : (
+                <Ionicons name="close-circle" size={24} color={theme.danger} />
               )}
             </View>
-          );
-        })}
-      </ScrollView>
+            
+            <Text style={[styles.questionText, { color: theme.text }]}>{item.questionText}</Text>
 
-      <TouchableOpacity style={[styles.closeButton, { backgroundColor: theme.card }]} onPress={() => navigation.goBack()}>
-        <Text style={[styles.closeButtonText, { color: theme.text }]}>Zamknij podgląd</Text>
-      </TouchableOpacity>
+            {/* Odpowiedzi */}
+            <View style={styles.answersContainer}>
+               {/* Jeśli odpowiedź była błędna, pokazujemy co wybrał użytkownik */}
+               {!item.isCorrect && item.userAnswerIndex !== null && (
+                 <View style={styles.answerRow}>
+                   <Text style={[styles.label, { color: theme.danger }]}>Twoja odpowiedź:</Text>
+                   <Text style={[styles.answerText, { color: theme.text }]}>
+                     {item.answerOptions ? item.answerOptions[item.userAnswerIndex] : 'Błąd danych'}
+                   </Text>
+                 </View>
+               )}
+
+               {/* Zawsze pokazujemy poprawną odpowiedź */}
+               <View style={styles.answerRow}>
+                 <Text style={[styles.label, { color: theme.success }]}>Poprawna odpowiedź:</Text>
+                 <Text style={[styles.answerText, { color: theme.text }]}>
+                   {item.correctAnswerIndex !== null && item.answerOptions 
+                      ? item.answerOptions[item.correctAnswerIndex] 
+                      : 'Nieznana'}
+                 </Text>
+               </View>
+            </View>
+          </View>
+        ))}
+      </ScrollView>
     </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { padding: 20, borderBottomWidth: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  headerTitle: { fontSize: 18, fontWeight: 'bold' },
-  headerScore: { fontSize: 18, fontWeight: 'bold' },
-  scrollContent: { padding: 20, paddingBottom: 80 },
-  questionBox: { padding: 15, borderRadius: 10, marginBottom: 15, borderWidth: 1 },
-  questionText: { fontSize: 16, fontWeight: '600', marginBottom: 10 },
-  answerRow: { marginTop: 5 },
-  label: { fontSize: 12, color: '#777', fontWeight: 'bold', textTransform: 'uppercase' },
-  answerText: { fontSize: 15, fontWeight: '500' },
-  textGreen: { color: '#2E7D32', fontWeight: 'bold' },
-  textRed: { color: '#C62828', textDecorationLine: 'line-through' },
-  textGray: { color: '#777', fontStyle: 'italic' },
-  closeButton: { padding: 15, margin: 20, borderRadius: 10, alignItems: 'center' },
-  closeButtonText: { fontWeight: 'bold' }
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    paddingTop: 50, // na status bar
+    borderBottomWidth: 1,
+  },
+  backButton: { padding: 8 },
+  headerTitle: { fontSize: 18, fontWeight: 'bold', textAlign: 'center' },
+  headerDate: { fontSize: 12, textAlign: 'center' },
+  content: { padding: 16, paddingBottom: 40 },
+  summaryCard: {
+    padding: 20,
+    borderRadius: 16,
+    alignItems: 'center',
+    marginBottom: 20,
+    elevation: 2,
+  },
+  score: { fontSize: 32, fontWeight: 'bold' },
+  status: { fontSize: 16, marginTop: 4 },
+  sectionHeader: { fontSize: 18, fontWeight: 'bold', marginBottom: 12 },
+  questionCard: {
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+  },
+  questionHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
+  qIndex: { fontWeight: 'bold' },
+  questionText: { fontSize: 16, marginBottom: 12, lineHeight: 22 },
+  answersContainer: { marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#eee' },
+  answerRow: { marginBottom: 6 },
+  label: { fontSize: 12, fontWeight: 'bold', marginBottom: 2 },
+  answerText: { fontSize: 14 },
 });
+
+export default ExamReviewScreen;
