@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { 
-  View, Text, TextInput, TouchableOpacity, StyleSheet, 
-  ActivityIndicator, Alert, ScrollView, KeyboardAvoidingView, Platform, Image 
+import {
+  View, Text, TextInput, TouchableOpacity, StyleSheet,
+  ActivityIndicator, Alert, ScrollView, KeyboardAvoidingView, Platform, Image
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext'; // <--- IMPORT MOTYWU
@@ -19,8 +19,11 @@ export default function ProfileScreen({ navigation }: any) {
   const [isRegistering, setIsRegistering] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState(''); // [NEW]
   const [username, setUsername] = useState('');
   const [loginInput, setLoginInput] = useState('');
+  const [acceptedTerms, setAcceptedTerms] = useState(false); // [NEW]
+  const [errors, setErrors] = useState<{ [key: string]: string }>({}); // [NEW]
   const [loading, setLoading] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
 
@@ -67,46 +70,81 @@ export default function ProfileScreen({ navigation }: any) {
   };
 
   // --- LOGOWANIE / REJESTRACJA / PRO ---
-  const handleLogin = async () => { /* ... Twoja logika ... */ 
-     // (Skracam kod tutaj dla czytelności, wklej swoją starą logikę handleLogin)
-     if (!loginInput || !password) return Alert.alert('Błąd', 'Wypełnij pola.');
-     setLoading(true);
-     try {
-       let finalEmail = loginInput;
-       if (!loginInput.includes('@')) {
-         const usersRef = collection(db, 'users');
-         const q = query(usersRef, where('username', '==', loginInput));
-         const snap = await getDocs(q);
-         if(snap.empty) throw new Error("Brak użytkownika.");
-         finalEmail = snap.docs[0].data().email;
-       }
-       await signInWithEmailAndPassword(auth, finalEmail, password);
-     } catch(e:any) { Alert.alert("Błąd", e.message); }
-     finally { setLoading(false); }
+  const handleLogin = async () => { /* ... Twoja logika ... */
+    // (Skracam kod tutaj dla czytelności, wklej swoją starą logikę handleLogin)
+    if (!loginInput || !password) return Alert.alert('Błąd', 'Wypełnij pola.');
+    setLoading(true);
+    try {
+      let finalEmail = loginInput;
+      if (!loginInput.includes('@')) {
+        const usersRef = collection(db, 'users');
+        const q = query(usersRef, where('username', '==', loginInput));
+        const snap = await getDocs(q);
+        if (snap.empty) throw new Error("Brak użytkownika.");
+        finalEmail = snap.docs[0].data().email;
+      }
+      await signInWithEmailAndPassword(auth, finalEmail, password);
+    } catch (e: any) { Alert.alert("Błąd", e.message); }
+    finally { setLoading(false); }
   };
 
-  const handleRegister = async () => { /* ... Twoja logika ... */ 
-      // (Skracam kod tutaj dla czytelności, wklej swoją starą logikę handleRegister)
-      if (!email || !password || !username) return Alert.alert('Błąd', 'Wypełnij pola.');
-      setLoading(true);
-      try {
-         const usersRef = collection(db, 'users');
-         const q = query(usersRef, where('username', '==', username));
-         const snap = await getDocs(q);
-         if(!snap.empty) throw new Error("Nick zajęty.");
-         const cred = await createUserWithEmailAndPassword(auth, email, password);
-         await setDoc(doc(db, 'users', cred.user.uid), {
-             email, username, isPro: false, createdAt: new Date(), photoURL: ''
-         });
-      } catch(e:any) { Alert.alert("Błąd", e.message); }
-      finally { setLoading(false); }
+  const validateForm = () => {
+    let valid = true;
+    let newErrors: { [key: string]: string } = {};
+
+    if (!email) { newErrors.email = 'Email jest wymagany'; valid = false; }
+    else if (!/\S+@\S+\.\S+/.test(email)) { newErrors.email = 'Nieprawidłowy format email'; valid = false; }
+
+    if (!username) { newErrors.username = 'Nazwa użytkownika jest wymagana'; valid = false; }
+    else if (username.length < 3) { newErrors.username = 'Min. 3 znaki'; valid = false; }
+
+    if (!password) { newErrors.password = 'Hasło jest wymagane'; valid = false; }
+    else if (password.length < 6) { newErrors.password = 'Min. 6 znaków'; valid = false; }
+
+    if (password !== confirmPassword) { newErrors.confirmPassword = 'Hasła nie są identyczne'; valid = false; }
+
+    if (!acceptedTerms) { newErrors.terms = 'Musisz zaakceptować regulamin'; valid = false; }
+
+    setErrors(newErrors);
+    return valid;
+  };
+
+  const handleRegister = async () => {
+    setErrors({});
+    if (!validateForm()) return;
+
+    setLoading(true);
+    try {
+      const usersRef = collection(db, 'users');
+      const q = query(usersRef, where('username', '==', username));
+      const snap = await getDocs(q);
+
+      if (!snap.empty) {
+        setErrors({ ...errors, username: 'Ta nazwa jest już zajęta' });
+        setLoading(false);
+        return;
+      }
+
+      const cred = await createUserWithEmailAndPassword(auth, email, password);
+      await setDoc(doc(db, 'users', cred.user.uid), {
+        email, username, isPro: false, createdAt: new Date(), photoURL: ''
+      });
+    } catch (e: any) {
+      console.log("Registration Error:", e.code, e.message);
+      let msg = "Wystąpił błąd rejestracji.";
+      if (e.code === 'auth/email-already-in-use') msg = "Ten email jest już używany.";
+      else if (e.code === 'auth/invalid-email') msg = "Nieprawidłowy email.";
+
+      Alert.alert("Błąd", msg);
+    }
+    finally { setLoading(false); }
   };
 
   const handleBuyPro = async () => {
     if (!user) return;
     setLoading(true);
     try { await updateDoc(doc(db, 'users', user.uid), { isPro: true }); Alert.alert("Sukces!", "Masz PRO."); }
-    catch(e:any) { Alert.alert("Błąd", e.message); }
+    catch (e: any) { Alert.alert("Błąd", e.message); }
     finally { setLoading(false); }
   };
 
@@ -128,9 +166,9 @@ export default function ProfileScreen({ navigation }: any) {
               <Image source={{ uri: userProfile.photoURL }} style={styles.avatarImage} />
             ) : (
               <View style={[styles.avatarPlaceholder, { backgroundColor: theme.iconBg }]}>
-                 <Text style={[styles.avatarText, { color: theme.subText }]}>
-                   {userProfile?.username ? userProfile.username.charAt(0).toUpperCase() : 'U'}
-                 </Text>
+                <Text style={[styles.avatarText, { color: theme.subText }]}>
+                  {userProfile?.username ? userProfile.username.charAt(0).toUpperCase() : 'U'}
+                </Text>
               </View>
             )}
             <View style={styles.cameraIconBadge}>
@@ -140,7 +178,7 @@ export default function ProfileScreen({ navigation }: any) {
 
           <Text style={[styles.title, { color: theme.text }]}>{userProfile?.username}</Text>
           <Text style={[styles.subtitle, { color: theme.subText }]}>{user.email}</Text>
-          
+
           <View style={[styles.badge, isPro ? styles.badgePro : styles.badgeFree]}>
             <Text style={[styles.badgeText, isPro ? styles.textPro : styles.textFree]}>
               {isPro ? 'WERSJA PRO 👑' : 'WERSJA FREE'}
@@ -152,7 +190,7 @@ export default function ProfileScreen({ navigation }: any) {
               <Text style={styles.upgradeText}>KUP WERSJĘ PRO (Symulacja)</Text>
             </TouchableOpacity>
           ) : (
-             <Text style={[styles.proBenefits, { color: theme.subText }]}>Twoje konto jest aktywne.</Text>
+            <Text style={[styles.proBenefits, { color: theme.subText }]}>Twoje konto jest aktywne.</Text>
           )}
         </View>
       );
@@ -161,33 +199,60 @@ export default function ProfileScreen({ navigation }: any) {
       return (
         <View style={[styles.card, { backgroundColor: theme.card }]}>
           <Text style={[styles.header, { color: theme.text }]}>{isRegistering ? 'Załóż konto' : 'Zaloguj się'}</Text>
-          
+
           {isRegistering ? (
             <>
-              <TextInput 
-                style={[styles.input, { backgroundColor: theme.background, color: theme.text, borderColor: theme.border }]} 
-                placeholder="Nazwa użytkownika" placeholderTextColor={theme.subText}
-                value={username} onChangeText={setUsername} autoCapitalize="none"
-              />
-              <TextInput 
-                style={[styles.input, { backgroundColor: theme.background, color: theme.text, borderColor: theme.border }]} 
-                placeholder="Email" placeholderTextColor={theme.subText}
-                value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none"
-              />
+              <View style={{ marginBottom: 15 }}>
+                <TextInput
+                  style={[styles.input, errors.username && styles.inputError, { backgroundColor: theme.background, color: theme.text, borderColor: errors.username ? 'red' : theme.border, marginBottom: 5 }]}
+                  placeholder="Nazwa użytkownika" placeholderTextColor={theme.subText}
+                  value={username} onChangeText={setUsername} autoCapitalize="none"
+                />
+                {errors.username && <Text style={styles.errorText}>{errors.username}</Text>}
+              </View>
+
+              <View style={{ marginBottom: 15 }}>
+                <TextInput
+                  style={[styles.input, errors.email && styles.inputError, { backgroundColor: theme.background, color: theme.text, borderColor: errors.email ? 'red' : theme.border, marginBottom: 5 }]}
+                  placeholder="Email" placeholderTextColor={theme.subText}
+                  value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none"
+                />
+                {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
+              </View>
             </>
           ) : (
-            <TextInput 
-              style={[styles.input, { backgroundColor: theme.background, color: theme.text, borderColor: theme.border }]} 
+            <TextInput
+              style={[styles.input, { backgroundColor: theme.background, color: theme.text, borderColor: theme.border }]}
               placeholder="Email lub Nazwa użytkownika" placeholderTextColor={theme.subText}
               value={loginInput} onChangeText={setLoginInput} autoCapitalize="none"
             />
           )}
 
-          <TextInput 
-            style={[styles.input, { backgroundColor: theme.background, color: theme.text, borderColor: theme.border }]} 
-            placeholder="Hasło" placeholderTextColor={theme.subText}
-            value={password} onChangeText={setPassword} secureTextEntry
-          />
+          <View style={{ marginBottom: 15 }}>
+            <TextInput
+              style={[styles.input, errors.password && styles.inputError, { backgroundColor: theme.background, color: theme.text, borderColor: errors.password ? 'red' : theme.border, marginBottom: 5 }]}
+              placeholder="Hasło" placeholderTextColor={theme.subText}
+              value={password} onChangeText={setPassword} secureTextEntry
+            />
+            {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
+          </View>
+
+          {isRegistering && (
+            <View style={{ marginBottom: 15 }}>
+              <TextInput
+                style={[styles.input, errors.confirmPassword && styles.inputError, { backgroundColor: theme.background, color: theme.text, borderColor: errors.confirmPassword ? 'red' : theme.border, marginBottom: 5 }]}
+                placeholder="Powtórz hasło" placeholderTextColor={theme.subText}
+                value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry
+              />
+              {errors.confirmPassword && <Text style={styles.errorText}>{errors.confirmPassword}</Text>}
+
+              <TouchableOpacity style={styles.checkboxContainer} onPress={() => setAcceptedTerms(!acceptedTerms)}>
+                <Ionicons name={acceptedTerms ? "checkbox" : "square-outline"} size={24} color={acceptedTerms ? theme.primary : theme.subText} />
+                <Text style={[styles.checkboxText, { color: theme.text }]}>Akceptuję <Text style={{ fontWeight: 'bold' }}>Warunki korzystania</Text></Text>
+              </TouchableOpacity>
+              {errors.terms && <Text style={[styles.errorText, { textAlign: 'center' }]}>{errors.terms}</Text>}
+            </View>
+          )}
 
           {loading ? <ActivityIndicator size="large" color={theme.primary} /> : (
             <TouchableOpacity style={[styles.mainButton, { backgroundColor: theme.primary }]} onPress={isRegistering ? handleRegister : handleLogin}>
@@ -207,15 +272,15 @@ export default function ProfileScreen({ navigation }: any) {
 
   // --- GŁÓWNY RENDER ---
   return (
-    <KeyboardAvoidingView 
+    <KeyboardAvoidingView
       style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
     >
       <ScrollView contentContainerStyle={[styles.container, { backgroundColor: theme.background }]} keyboardShouldPersistTaps="handled">
         {renderHeaderSection()}
-        
+
         <View style={styles.menuSection}>
           <Text style={styles.sectionHeader}>Opcje aplikacji</Text>
-          
+
           {/* MENU ITEMS Z MOTYWEM */}
           <TouchableOpacity style={[styles.menuItem, { backgroundColor: theme.card }]} onPress={() => navigation.navigate('Settings')}>
             <View style={[styles.menuIconContainer, { backgroundColor: theme.iconBg }]}>
@@ -261,16 +326,16 @@ const styles = StyleSheet.create({
   header: { fontSize: 24, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' },
   card: { padding: 25, borderRadius: 20, marginBottom: 10, elevation: 3, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
   cardPro: { borderColor: '#FFD700', borderWidth: 2 },
-  
+
   avatarContainer: { alignSelf: 'center', marginBottom: 15, position: 'relative' },
   avatarPlaceholder: { width: 100, height: 100, borderRadius: 50, justifyContent: 'center', alignItems: 'center' },
   avatarImage: { width: 100, height: 100, borderRadius: 50 },
   avatarText: { fontSize: 32, fontWeight: 'bold' },
   cameraIconBadge: { position: 'absolute', bottom: 0, right: 0, backgroundColor: '#007AFF', width: 30, height: 30, borderRadius: 15, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#fff' },
-  
+
   title: { fontSize: 24, fontWeight: 'bold', marginBottom: 5, textAlign: 'center' },
   subtitle: { fontSize: 16, marginBottom: 15, textAlign: 'center' },
-  
+
   badge: { alignSelf: 'center', paddingHorizontal: 15, paddingVertical: 6, borderRadius: 15, marginBottom: 15 },
   badgeFree: { backgroundColor: '#F0F0F0' },
   badgePro: { backgroundColor: '#FFF5E1' },
@@ -281,7 +346,11 @@ const styles = StyleSheet.create({
   upgradeButton: { padding: 12, borderRadius: 10, width: '100%', alignItems: 'center', marginTop: 5 },
   upgradeText: { color: '#fff', fontWeight: 'bold' },
 
-  input: { padding: 15, borderRadius: 10, marginBottom: 15, borderWidth: 1 },
+  input: { padding: 15, borderRadius: 10, borderWidth: 1 },
+  inputError: { borderColor: 'red', borderWidth: 1 },
+  errorText: { color: 'red', fontSize: 12, marginLeft: 5 },
+  checkboxContainer: { flexDirection: 'row', alignItems: 'center', marginTop: 10, justifyContent: 'center' },
+  checkboxText: { marginLeft: 10, fontSize: 14 },
   mainButton: { padding: 18, borderRadius: 12, alignItems: 'center', marginTop: 10 },
   mainButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
   switchText: { textAlign: 'center', marginTop: 20, fontWeight: '600' },

@@ -14,7 +14,7 @@ const SHOP_ITEMS = [
 
 export default function ShopScreen({ navigation }: any) {
   const { theme } = useTheme();
-  const [userPoints, setUserPoints] = useState(2450); // Mock punktów (później weźmiesz z bazy)
+  const [userPoints, setUserPoints] = useState(50000); // Mock punktów (później weźmiesz z bazy)
 
   const handleBuy = (item: any) => {
     if (userPoints >= item.price) {

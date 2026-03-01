@@ -1,0 +1,38 @@
+FAIL src/__tests__/App.test.tsx
+  ● Test suite failed to run
+
+    Cannot find module 'expo-asset' from 'node_modules/expo-font/build/FontLoader.js'
+
+    Require stack:
+      node_modules/expo-font/build/FontLoader.js
+      node_modules/expo-font/build/Font.js
+      node_modules/expo-font/build/index.js
+      node_modules/@expo/vector-icons/build/createIconSet.js
+      node_modules/@expo/vector-icons/build/AntDesign.js
+      node_modules/@expo/vector-icons/build/IconsLazy.js
+      App.tsx
+      src/__tests__/App.test.tsx
+
+    [0m [90m  6 |[39m [36mimport[39m [33m*[39m [36mas[39m [33mSplashScreen[39m [36mfrom[39m [32m'expo-splash-screen'[39m[33m;[39m
+     [90m  7 |[39m [36mimport[39m { [33mStatusBar[39m } [36mfrom[39m [32m'expo-status-bar'[39m[33m;[39m
+    [31m[1m>[22m[39m[90m  8 |[39m [36mimport[39m { [33mIonicons[39m } [36mfrom[39m [32m'@expo/vector-icons'[39m[33m;[39m [90m// <--- DODANO[39m
+     [90m    |[39m [31m[1m^[22m[39m
+     [90m  9 |[39m
+     [90m 10 |[39m [90m// Konteksty[39m
+     [90m 11 |[39m [36mimport[39m { [33mAuthProvider[39m } [36mfrom[39m [32m'./src/context/AuthContext'[39m[33m;[39m[0m
+
+      at Resolver._throwModNotFoundError (node_modules/jest-resolve/build/resolver.js:427:11)
+      at Object.require (node_modules/expo-font/src/FontLoader.ts:1:1)
+      at Object.require (node_modules/expo-font/src/Font.ts:5:1)
+      at Object.require (node_modules/expo-font/src/index.ts:1:1)
+      at Object.require (node_modules/@expo/vector-icons/src/createIconSet.tsx:1:1)
+      at Object.require (node_modules/@expo/vector-icons/src/AntDesign.ts:3:1)
+      at Object.require (node_modules/@expo/vector-icons/src/Icons.ts:3:1)
+      at Object.require (App.tsx:8:1)
+      at Object.require (src/__tests__/App.test.tsx:4:1)
+
+Test Suites: 1 failed, 1 total
+Tests:       0 total
+Snapshots:   0 total
+Time:        2.005 s
+Ran all test suites.
