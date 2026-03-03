@@ -16,6 +16,7 @@ import { checkStreakStatus, StreakData } from '../utils/streakManager';
 // Components
 import GlowCard from '../components/GlowCard';
 import { StreakCard } from '../components/StreakCard';
+import { DailyChallengeCard } from '../components/DailyChallengeCard';
 import { ProUpgradeCard } from '../components/ProUpgradeCard';
 import { SchoolCard } from '../components/SchoolCard';
 import { QuickActionTile } from '../components/QuickActionTile';
@@ -133,6 +134,7 @@ export default function QualificationScreen({ navigation }: any) {
         {/* STATYSTYKI (SERIA) */}
         <View style={{ paddingHorizontal: 24, marginBottom: 10 }}>
            {streakData ? <StreakCard data={streakData} /> : null}
+           <DailyChallengeCard />
         </View>
 
         {/* KATEGORIE (SZKOŁY) */}

@@ -1,7 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { StreakData } from '../utils/streakManager';
 
 interface StreakCardProps {
@@ -9,129 +8,198 @@ interface StreakCardProps {
 }
 
 export const StreakCard: React.FC<StreakCardProps> = ({ data }) => {
-  const isDoneToday = data.didPracticeToday;
-
-  const activeColors = ['#FF416C', '#FF4B2B'] as const;
-  const inactiveColors = ['#485563', '#29323c'] as const;
+  // MOCKI DANYCH (zgodne z Twoim HTML)
+  const level = 7;
+  const levelName = "Technik IT";
+  const currentXP = 840;
+  const requiredXP = 1200;
+  
+  // Obliczamy procent zapełnienia paska
+  const progressPercentage = (currentXP / requiredXP) * 100;
 
   return (
-    <LinearGradient
-      colors={isDoneToday ? activeColors : inactiveColors}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 0 }}
-      style={styles.container}
-    >
-      {/* Lewa strona: Ikona i Licznik */}
-      <View style={styles.leftSection}>
-        <View style={styles.iconContainer}>
-          <Ionicons name="flame" size={32} color="#FFF" />
+    <View style={styles.card}>
+      {/* Efekty poświaty (Glow) w tle */}
+      <View style={styles.glowLeft} />
+      <View style={styles.glowRight} />
+
+      {/* GÓRNA SEKCJA */}
+      <View style={styles.topSection}>
+        
+        {/* Lewa strona: Poziom */}
+        <View style={styles.levelBlock}>
+          <Text style={styles.levelLabel}>Twój poziom</Text>
+          <Text style={styles.levelNumber}>{level}</Text>
+          <Text style={styles.levelName}>{levelName}</Text>
         </View>
-        <View style={styles.textContainer}>
-          <Text style={styles.countText}>
-            {data.currentStreak}
-          </Text>
-          <Text style={styles.label}>
-            DNI Z RZĘDU
-          </Text>
+
+        {/* Prawa strona: Odznaka XP i Seria */}
+        <View style={styles.rightBlock}>
+          <View style={styles.rankBadge}>
+            <Text style={styles.rankBadgeText}>🏅 {currentXP} XP</Text>
+          </View>
+          
+          <View style={styles.streakBlock}>
+            <Ionicons name="flame" size={28} color="#FF9500" style={styles.streakIcon} />
+            <Text style={styles.streakNumber}>{data.currentStreak}</Text>
+            
+            <View style={styles.streakInfo}>
+              <Text style={styles.streakLabel}>Seria</Text>
+              <Text style={styles.streakSub}>dni</Text>
+            </View>
+          </View>
         </View>
+
       </View>
 
-      {/* Prawa strona: Status */}
-      <View style={styles.rightSection}>
-        <View style={styles.badge}>
-          <Text style={styles.recordText}>
-            REKORD: {data.bestStreak}
-          </Text>
-        </View>
-        
-        {/* TUTAJ ZMIANA: Jedna linia + autoskalowanie */}
-        <Text 
-          style={styles.statusText} 
-          numberOfLines={1} 
-          adjustsFontSizeToFit={true} // Zmniejsz czcionkę jeśli się nie mieści
-          minimumFontScale={0.7}      // Ale nie mniej niż 70% oryginału
-        >
-          {isDoneToday 
-            ? "Ogień podtrzymany! 🔥" 
-            : "Ukończ egzamin, aby zaliczyć!"} 
-        </Text>
+      {/* DOLNA SEKCJA: Pasek postępu */}
+      <View style={styles.xpRow}>
+        <Text style={styles.xpLabel}>Postęp do poziomu {level + 1}</Text>
+        <Text style={styles.xpVal}>{currentXP} / {requiredXP} XP</Text>
       </View>
-    </LinearGradient>
+      
+      <View style={styles.barBackground}>
+        <View style={[styles.barFill, { width: `${progressPercentage}%` }]} />
+      </View>
+
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20, // Zmniejszyłem lekko padding
-    paddingVertical: 18,
+  card: {
+    backgroundColor: '#1E1E2D', // Ciemne tło karty bazowe
     borderRadius: 20,
+    padding: 20,
     marginBottom: 20,
-    shadowColor: "#FF4B2B",
+    overflow: 'hidden', // Kluczowe, by 'glow' nie wychodził poza zaokrąglone rogi
+    position: 'relative',
+    // Cienie
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 5,
     elevation: 8,
   },
-  leftSection: {
+  
+  // --- EFEKTY GLOW ---
+  glowLeft: {
+    position: 'absolute',
+    top: -40,
+    left: -40,
+    width: 140,
+    height: 140,
+    backgroundColor: 'rgba(160,80,255,0.35)',
+    borderRadius: 70, // Idealne koło
+  },
+  glowRight: {
+    position: 'absolute',
+    top: -20,
+    right: -30,
+    width: 120,
+    height: 120,
+    backgroundColor: 'rgba(50,120,255,0.25)',
+    borderRadius: 60,
+  },
+
+  // --- GÓRNA SEKCJA ---
+  topSection: {
     flexDirection: 'row',
-    alignItems: 'center',
-    // Usunąłem sztywną szerokość, żeby lewa strona zajmowała tyle ile musi
+    justifyContent: 'space-between',
+    marginBottom: 20,
   },
-  iconContainer: {
-    width: 46, // Troszkę mniejsze kółko
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  textContainer: {
+  levelBlock: {
     justifyContent: 'center',
   },
-  countText: {
-    fontSize: 26,
-    fontWeight: '800',
-    color: '#FFF',
-    lineHeight: 30,
-    textShadowColor: 'rgba(0,0,0,0.2)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
-  },
-  label: {
-    fontSize: 9, // Mniejszy label
-    fontWeight: '700',
-    color: 'rgba(255,255,255,0.8)',
+  levelLabel: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.6)',
     textTransform: 'uppercase',
+    fontWeight: '600',
     letterSpacing: 0.5,
   },
-  rightSection: {
-    flex: 1, // Ważne: zajmuje resztę miejsca
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-    marginLeft: 10,
+  levelNumber: {
+    fontSize: 36,
+    fontWeight: '900',
+    color: '#FFF',
+    lineHeight: 40,
+    marginVertical: 4,
   },
-  badge: {
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
-    marginBottom: 4,
-  },
-  recordText: {
-    fontSize: 10,
-    color: 'rgba(255,255,255,0.9)',
+  levelName: {
+    fontSize: 14,
+    color: '#A050FF', // Fioletowy akcent
     fontWeight: '700',
-    textTransform: 'uppercase',
   },
-  statusText: {
-    fontSize: 13, // Wyjściowy rozmiar
+
+  // --- PRAWA STRONA ---
+  rightBlock: {
+    alignItems: 'flex-end',
+    justifyContent: 'flex-start',
+  },
+  rankBadge: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginBottom: 10,
+  },
+  rankBadgeText: {
+    fontSize: 12,
     color: '#FFF',
     fontWeight: '700',
-    textAlign: 'right',
-    width: '100%', // Musi mieć szerokość, żeby adjustsFontSizeToFit wiedziało do czego równać
+  },
+  streakBlock: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  streakIcon: {
+    marginRight: 4,
+  },
+  streakNumber: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#FFF',
+    marginRight: 6,
+  },
+  streakInfo: {
+    justifyContent: 'center',
+  },
+  streakLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.8)',
+  },
+  streakSub: {
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.5)',
+  },
+
+  // --- DOLNA SEKCJA (PASEK POSTĘPU) ---
+  xpRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  xpLabel: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.7)',
+    fontWeight: '500',
+  },
+  xpVal: {
+    fontSize: 12,
+    color: '#FFF',
+    fontWeight: '700',
+  },
+  barBackground: {
+    width: '100%',
+    height: 8,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  barFill: {
+    height: '100%',
+    backgroundColor: '#3278FF', // Niebieski pasek
+    borderRadius: 4,
   },
 });
