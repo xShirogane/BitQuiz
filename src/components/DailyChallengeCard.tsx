@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { GlowOrb } from './GlowOrb'; // <--- DODANY IMPORT
 
 export const DailyChallengeCard: React.FC = () => {
   // MOCKI DANYCH - w przyszłości przekażemy je przez propsy
@@ -20,8 +21,8 @@ export const DailyChallengeCard: React.FC = () => {
       end={{ x: 1, y: 1 }}
       style={styles.card}
     >
-      {/* Efekt poświaty (Glow) w prawym górnym rogu */}
-      <View style={styles.glowRight} />
+      {/* Miękkie rozmycie (Glow) zamiast twardego kółka */}
+      <GlowOrb color="#ffb428" size={120} top={-40} right={-30} />
 
       {/* GÓRNA SEKCJA: Odznaka i Nagroda */}
       <View style={styles.topRow}>
@@ -64,15 +65,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden', // Chowa nadmiar poświaty (glow)
     position: 'relative',
   },
-  glowRight: {
-    position: 'absolute',
-    top: -30,
-    right: -20,
-    width: 100,
-    height: 100,
-    backgroundColor: 'rgba(255,180,40,0.12)',
-    borderRadius: 50, // Idealne koło
-  },
+  // Usunięto stary styl glowRight!
   topRow: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -1,11 +1,11 @@
 import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'; // <--- DODANO
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { Ionicons } from '@expo/vector-icons'; // <--- DODANO
+import { Ionicons } from '@expo/vector-icons';
 
 // Konteksty
 import { AuthProvider } from './src/context/AuthContext';
@@ -17,7 +17,7 @@ import ResultScreen from './src/screens/ResultScreen';
 import QualificationScreen from './src/screens/QualificationScreen';
 import ModeSelectionScreen from './src/screens/ModeSelectionScreen';
 import TrainingScreen from './src/screens/TrainingScreen';
-import ProfileScreen from './src/screens/ProfileScreen';
+import ProfileScreen from './src/screens/ProfileScreen'; // <--- Zostaje zaimportowany
 import OneLifeScreen from './src/screens/OneLifeScreen';
 import MultiplayerSetupScreen from './src/screens/MultiplayerSetupScreen';
 import MultiplayerGameScreen from './src/screens/MultiplayerGameScreen';
@@ -26,7 +26,7 @@ import ExamReviewScreen from './src/screens/ExamReviewScreen';
 import MistakeReviewScreen from './src/screens/MistakeReviewScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import ContactScreen from './src/screens/ContactScreen';
-import SearchScreen from './src/screens/SearchScreen'; // <--- Upewnij się, że masz ten plik!
+import SearchScreen from './src/screens/SearchScreen';
 import ShopScreen from './src/screens/ShopScreen';
 import NewsScreen from './src/screens/NewsScreen';
 import SupportScreen from './src/screens/SupportScreen';
@@ -35,7 +35,7 @@ import Contact2Screen from './src/screens/ContactScreen2';
 SplashScreen.preventAutoHideAsync();
 
 const Stack = createNativeStackNavigator();
-const Tab = createBottomTabNavigator(); // <--- INICJALIZACJA TABÓW
+const Tab = createBottomTabNavigator();
 
 // --- NASZ PŁYWAJĄCY PASEK (Floating Pill) ---
 function HomeTabs() {
@@ -49,22 +49,14 @@ function HomeTabs() {
         
         tabBarStyle: {
           position: 'absolute',
-          bottom: 40, // Odstęp od dołu
-          
-          // --- NOWA METODA CENTROWANIA (Marginesy) ---
-          marginHorizontal: 20, // To ściśnie pasek z obu stron (zrobi się pastylka na środku)
-          height: 40, // Wysokość paska
-          
-          // --- ZABÓJCA PUSTEJ PRZESTRZENI ---
-          paddingBottom: 0, // Resetujemy padding systemowy
+          bottom: 40,
+          marginHorizontal: 20,
+          height: 40,
+          paddingBottom: 0,
           paddingTop: 0,
-          
-          // Wygląd
           backgroundColor: theme.card,
-          borderRadius: 30, // Idealne zaokrąglenie (połowa wysokości)
-          borderTopWidth: 0, // Usuwamy górną kreskę
-          
-          // Cień (żeby się odcinał od tła)
+          borderRadius: 30,
+          borderTopWidth: 0,
           elevation: 5,
           shadowColor: '#000',
           shadowOffset: { width: 0, height: 4 },
@@ -75,23 +67,21 @@ function HomeTabs() {
         tabBarActiveTintColor: theme.primary,
         tabBarInactiveTintColor: theme.subText,
         
-        // --- UKŁAD WEWNĄTRZ PASKA ---
         tabBarItemStyle: {
-           height: 60, // Musi być równe wysokości paska
-           justifyContent: 'center', // Ikona w pionie na środku
-           alignItems: 'center', // Ikona w poziomie na środku
+           height: 60,
+           justifyContent: 'center',
+           alignItems: 'center',
         },
 
         tabBarIcon: ({ focused, color }) => {
           let iconName: any;
           const size = 26;
 
+          // Zostawiamy tylko Home i Search
           if (route.name === 'HomeTab') {
             iconName = focused ? 'home' : 'home-outline';
           } else if (route.name === 'SearchTab') {
             iconName = focused ? 'search' : 'search-outline';
-          } else if (route.name === 'ProfileTab') {
-            iconName = focused ? 'person' : 'person-outline';
           }
 
           return <Ionicons name={iconName} size={size} color={color} />;
@@ -100,7 +90,7 @@ function HomeTabs() {
     >
       <Tab.Screen name="HomeTab" component={QualificationScreen} />
       <Tab.Screen name="SearchTab" component={SearchScreen} />
-      <Tab.Screen name="ProfileTab" component={ProfileScreen} />
+      {/* USUNĘLIŚMY STĄD PROFIL */}
     </Tab.Navigator>
   );
 }
@@ -152,7 +142,6 @@ const AppContent = () => {
       <StatusBar style={isDark ? "light" : "dark"} />
       
       <Stack.Navigator 
-        // ZMIANA: Startujemy od 'MainTabs', który zawiera pasek
         initialRouteName="MainTabs" 
         screenOptions={{
            headerStyle: { backgroundColor: theme.card },
@@ -162,10 +151,13 @@ const AppContent = () => {
            contentStyle: { backgroundColor: theme.background }
         }}
       >
-        {/* TUTAJ WSTAWIAMY NASZ PASEK JAKO EKRAN GŁÓWNY */}
+        {/* NASZ PASEK Z DOKOWANIEM */}
         <Stack.Screen name="MainTabs" component={HomeTabs} options={{ headerShown: false }} />
         
-        {/* Pozostałe ekrany (przykrywają pasek gdy się w nie wejdzie) */}
+        {/* DODALIŚMY PROFIL TUTAJ, DO GŁÓWNEJ NAWIGACJI */}
+        <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: 'Mój Profil' }} />
+
+        {/* Pozostałe ekrany */}
         <Stack.Screen name="ModeSelection" component={ModeSelectionScreen} options={{ title: 'Wybór trybu' }} />
         <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
         <Stack.Screen name="Exam" component={ExamScreen} options={{ title: 'Egzamin', headerBackVisible: false }} />

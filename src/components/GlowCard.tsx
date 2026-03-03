@@ -13,7 +13,7 @@ interface GlowCardProps {
 }
 
 const { width } = Dimensions.get('window');
-const CARD_WIDTH = width * 0.75; 
+const CARD_WIDTH = width * 0.5; 
 
 export default function GlowCard({ title, subtitle, iconName, colors, onPress }: GlowCardProps) {
   const { theme } = useTheme();

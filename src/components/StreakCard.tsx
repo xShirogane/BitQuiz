@@ -2,13 +2,14 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { StreakData } from '../utils/streakManager';
+import { GlowOrb } from './GlowOrb';
 
 interface StreakCardProps {
   data: StreakData;
 }
 
 export const StreakCard: React.FC<StreakCardProps> = ({ data }) => {
-  // MOCKI DANYCH (zgodne z Twoim HTML)
+  // MOCKI DANYCH
   const level = 7;
   const levelName = "Technik IT";
   const currentXP = 840;
@@ -19,9 +20,9 @@ export const StreakCard: React.FC<StreakCardProps> = ({ data }) => {
 
   return (
     <View style={styles.card}>
-      {/* Efekty poświaty (Glow) w tle */}
-      <View style={styles.glowLeft} />
-      <View style={styles.glowRight} />
+      {/* Piękne, miękkie rozmycie (Glow) */}
+      <GlowOrb color="#A050FF" size={160} top={-40} left={-40} />
+      <GlowOrb color="#3278FF" size={140} top={-10} right={-30} />
 
       {/* GÓRNA SEKCJA */}
       <View style={styles.topSection}>
@@ -35,12 +36,15 @@ export const StreakCard: React.FC<StreakCardProps> = ({ data }) => {
 
         {/* Prawa strona: Odznaka XP i Seria */}
         <View style={styles.rightBlock}>
+          
+          {/* OBRAMÓWKA DLA XP */}
           <View style={styles.rankBadge}>
             <Text style={styles.rankBadgeText}>🏅 {currentXP} XP</Text>
           </View>
           
+          {/* OBRAMÓWKA DLA SERII */}
           <View style={styles.streakBlock}>
-            <Ionicons name="flame" size={28} color="#FF9500" style={styles.streakIcon} />
+            <Ionicons name="flame" size={24} color="#FF9500" style={styles.streakIcon} />
             <Text style={styles.streakNumber}>{data.currentStreak}</Text>
             
             <View style={styles.streakInfo}>
@@ -48,8 +52,8 @@ export const StreakCard: React.FC<StreakCardProps> = ({ data }) => {
               <Text style={styles.streakSub}>dni</Text>
             </View>
           </View>
-        </View>
 
+        </View>
       </View>
 
       {/* DOLNA SEKCJA: Pasek postępu */}
@@ -68,41 +72,18 @@ export const StreakCard: React.FC<StreakCardProps> = ({ data }) => {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#1E1E2D', // Ciemne tło karty bazowe
+    backgroundColor: '#1E1E2D',
     borderRadius: 20,
     padding: 20,
     marginBottom: 20,
-    overflow: 'hidden', // Kluczowe, by 'glow' nie wychodził poza zaokrąglone rogi
+    overflow: 'hidden', 
     position: 'relative',
-    // Cienie
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 5,
     elevation: 8,
   },
-  
-  // --- EFEKTY GLOW ---
-  glowLeft: {
-    position: 'absolute',
-    top: -40,
-    left: -40,
-    width: 140,
-    height: 140,
-    backgroundColor: 'rgba(160,80,255,0.35)',
-    borderRadius: 70, // Idealne koło
-  },
-  glowRight: {
-    position: 'absolute',
-    top: -20,
-    right: -30,
-    width: 120,
-    height: 120,
-    backgroundColor: 'rgba(50,120,255,0.25)',
-    borderRadius: 60,
-  },
-
-  // --- GÓRNA SEKCJA ---
   topSection: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -127,19 +108,21 @@ const styles = StyleSheet.create({
   },
   levelName: {
     fontSize: 14,
-    color: '#A050FF', // Fioletowy akcent
+    color: '#A050FF',
     fontWeight: '700',
   },
-
-  // --- PRAWA STRONA ---
   rightBlock: {
     alignItems: 'flex-end',
     justifyContent: 'flex-start',
   },
+  
+  // --- DODANE OBRAMÓWKI ---
   rankBadge: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1, // Grubość ramki
+    borderColor: 'rgba(255,255,255,0.2)', // Kolor ramki
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 12,
     marginBottom: 10,
   },
@@ -151,12 +134,20 @@ const styles = StyleSheet.create({
   streakBlock: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1, // Grubość ramki
+    borderColor: 'rgba(255,255,255,0.2)', // Kolor ramki
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
   },
+  // -----------------------
+
   streakIcon: {
     marginRight: 4,
   },
   streakNumber: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#FFF',
     marginRight: 6,
@@ -173,8 +164,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: 'rgba(255,255,255,0.5)',
   },
-
-  // --- DOLNA SEKCJA (PASEK POSTĘPU) ---
   xpRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -199,7 +188,7 @@ const styles = StyleSheet.create({
   },
   barFill: {
     height: '100%',
-    backgroundColor: '#3278FF', // Niebieski pasek
+    backgroundColor: '#3278FF',
     borderRadius: 4,
   },
 });
