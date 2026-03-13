@@ -10,15 +10,15 @@ interface ExamQuickActionCardProps {
   onPress: () => void;
 }
 
-export const ExamQuickActionCard: React.FC<ExamQuickActionCardProps> = ({ 
-  title, subtitle, emoji, iconBg, onPress 
+export const ExamQuickActionCard: React.FC<ExamQuickActionCardProps> = React.memo(({
+  title, subtitle, emoji, iconBg, onPress
 }) => {
   const { theme } = useTheme(); // Używamy motywu
 
   return (
-    <TouchableOpacity 
+    <TouchableOpacity
       style={[styles.card, { backgroundColor: theme.card }]} // TŁO Z MOTYWU
-      onPress={onPress} 
+      onPress={onPress}
       activeOpacity={0.8}
     >
       <View style={[styles.iconBox, { backgroundColor: iconBg }]}>
@@ -29,11 +29,11 @@ export const ExamQuickActionCard: React.FC<ExamQuickActionCardProps> = ({
       <Text style={[styles.subtitle, { color: theme.subText }]} numberOfLines={2}>{subtitle}</Text>
     </TouchableOpacity>
   );
-};
+});
 
 const styles = StyleSheet.create({
   card: {
-    width: '48%', 
+    width: '48%',
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,

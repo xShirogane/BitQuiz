@@ -1,32 +1,42 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { StreakData } from '../utils/streakManager';
+import { getXPData, getLevelInfo } from '../utils/xpManager';
 import { GlowOrb } from './GlowOrb';
 
 interface StreakCardProps {
   data: StreakData;
+  onInfoPress?: () => void;
 }
 
-export const StreakCard: React.FC<StreakCardProps> = ({ data }) => {
-  // MOCKI DANYCH
-  const level = 7;
-  const levelName = "Technik IT";
-  const currentXP = 840;
-  const requiredXP = 1200;
-  
-  // Obliczamy procent zapełnienia paska
-  const progressPercentage = (currentXP / requiredXP) * 100;
+export const StreakCard: React.FC<StreakCardProps> = ({ data, onInfoPress }) => {
+  const [levelInfo, setLevelInfo] = useState({
+    level: 1, levelName: 'Początkujący', totalXP: 0,
+    currentLevelXP: 0, requiredLevelXP: 300, nextLevelTotalXP: 300,
+    progress: 0, isMaxLevel: false,
+  });
+
+  useEffect(() => {
+    const loadXP = async () => {
+      const xpData = await getXPData();
+      setLevelInfo(getLevelInfo(xpData.totalXP));
+    };
+    loadXP();
+  }, []);
+
+  const { level, levelName, totalXP, currentLevelXP, requiredLevelXP, progress, nextLevelTotalXP } = levelInfo;
 
   return (
-    <View style={styles.card}>
+    <TouchableOpacity activeOpacity={0.8} onPress={onInfoPress} style={styles.card}>
       {/* Piękne, miękkie rozmycie (Glow) */}
       <GlowOrb color="#A050FF" size={160} top={-40} left={-40} />
       <GlowOrb color="#3278FF" size={140} top={-10} right={-30} />
 
       {/* GÓRNA SEKCJA */}
       <View style={styles.topSection}>
-        
+
         {/* Lewa strona: Poziom */}
         <View style={styles.levelBlock}>
           <Text style={styles.levelLabel}>Twój poziom</Text>
@@ -36,17 +46,17 @@ export const StreakCard: React.FC<StreakCardProps> = ({ data }) => {
 
         {/* Prawa strona: Odznaka XP i Seria */}
         <View style={styles.rightBlock}>
-          
+
           {/* OBRAMÓWKA DLA XP */}
           <View style={styles.rankBadge}>
-            <Text style={styles.rankBadgeText}>🏅 {currentXP} XP</Text>
+            <Text style={styles.rankBadgeText}>🏅 {totalXP} XP</Text>
           </View>
-          
+
           {/* OBRAMÓWKA DLA SERII */}
           <View style={styles.streakBlock}>
             <Ionicons name="flame" size={24} color="#FF9500" style={styles.streakIcon} />
             <Text style={styles.streakNumber}>{data.currentStreak}</Text>
-            
+
             <View style={styles.streakInfo}>
               <Text style={styles.streakLabel}>Seria</Text>
               <Text style={styles.streakSub}>dni</Text>
@@ -59,29 +69,36 @@ export const StreakCard: React.FC<StreakCardProps> = ({ data }) => {
       {/* DOLNA SEKCJA: Pasek postępu */}
       <View style={styles.xpRow}>
         <Text style={styles.xpLabel}>Postęp do poziomu {level + 1}</Text>
-        <Text style={styles.xpVal}>{currentXP} / {requiredXP} XP</Text>
-      </View>
-      
-      <View style={styles.barBackground}>
-        <View style={[styles.barFill, { width: `${progressPercentage}%` }]} />
+        <Text style={styles.xpVal}>{totalXP} / {nextLevelTotalXP} XP</Text>
       </View>
 
-    </View>
+      <View style={styles.barBackground}>
+        <LinearGradient
+          colors={['#A050FF', '#5B7FFF', '#3278FF'] as const}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={[styles.barFill, { width: `${progress}%` }]}
+        />
+      </View>
+
+    </TouchableOpacity>
   );
 };
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#1E1E2D',
+    backgroundColor: '#151525',
     borderRadius: 20,
     padding: 20,
     marginBottom: 20,
-    overflow: 'hidden', 
+    overflow: 'hidden',
     position: 'relative',
-    shadowColor: '#000',
+    borderWidth: 1.5,
+    borderColor: '#6B3FA0',
+    shadowColor: '#7B4FBF',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
     elevation: 8,
   },
   topSection: {
@@ -115,7 +132,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     justifyContent: 'flex-start',
   },
-  
+
   // --- DODANE OBRAMÓWKI ---
   rankBadge: {
     backgroundColor: 'rgba(255,255,255,0.05)',
@@ -182,13 +199,16 @@ const styles = StyleSheet.create({
   barBackground: {
     width: '100%',
     height: 8,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: 4,
     overflow: 'hidden',
   },
   barFill: {
     height: '100%',
-    backgroundColor: '#3278FF',
     borderRadius: 4,
+  },
+  infoBtn: {
+    marginLeft: 6,
+    padding: 2,
   },
 });

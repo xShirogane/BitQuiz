@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { 
-  View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, 
-  Alert, ScrollView, BackHandler, Image 
+import {
+  View, Text, StyleSheet, TouchableOpacity, ActivityIndicator,
+  Alert, ScrollView, BackHandler, Image
 } from 'react-native';
-import { db } from '../config/firebase'; 
+import { db } from '../config/firebase';
 import { doc, onSnapshot, updateDoc, increment } from 'firebase/firestore';
 import { useTheme } from '../context/ThemeContext';
+import { checkDailyChallengeAfterMultiplayerWin } from '../utils/dailyChallengeManager';
+import { addCoins, COIN_REWARDS } from '../utils/coinManager';
 import { useVideoPlayer, VideoView } from 'expo-video';
 
 const GITHUB_IMAGE_BASE_URL = 'https://raw.githubusercontent.com/xShirogane/BitQuiz-Assets/main/';
@@ -26,13 +28,13 @@ const QuestionVideo = ({ uri }: { uri: string }) => {
 export default function MultiplayerGameScreen({ route, navigation }: any) {
   const { roomCode, isHost } = route.params;
   const { theme } = useTheme();
-  
+
   const [gameData, setGameData] = useState<any>(null);
-  const [currentIndex, setCurrentIndex] = useState(0); 
-  const [finished, setFinished] = useState(false); 
-  
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [finished, setFinished] = useState(false);
+
   // Domyślny czas, zaktualizujemy go jak pobierzemy dane
-  const [timeLeft, setTimeLeft] = useState(30); 
+  const [timeLeft, setTimeLeft] = useState(30);
 
   useEffect(() => {
     const backAction = () => { Alert.alert("Czekaj!", "Nie możesz wyjść w trakcie pojedynku.", [{ text: "OK" }]); return true; };
@@ -45,16 +47,16 @@ export default function MultiplayerGameScreen({ route, navigation }: any) {
     const unsubscribe = onSnapshot(roomRef, (docSnap) => {
       if (docSnap.exists()) {
         setGameData(docSnap.data());
-      } else { 
-        Alert.alert("Błąd", "Pokój usunięty."); 
-        navigation.popToTop(); 
+      } else {
+        Alert.alert("Błąd", "Pokój usunięty.");
+        navigation.popToTop();
       }
     });
     return () => unsubscribe();
   }, []);
 
   // NOWE: Resetowanie czasu na podstawie ustawień pokoju
-  useEffect(() => { 
+  useEffect(() => {
     if (gameData?.timePerQuestion) {
       setTimeLeft(gameData.timePerQuestion);
     }
@@ -63,10 +65,10 @@ export default function MultiplayerGameScreen({ route, navigation }: any) {
   useEffect(() => {
     if (!gameData || gameData.status === 'waiting' || finished) return;
     if (gameData.hostFinished && gameData.guestFinished) return;
-    
+
     // Jeśli czas się skończył -> zła odpowiedź (-1)
     if (timeLeft <= 0) { handleAnswer(-1); return; }
-    
+
     const timerId = setInterval(() => { setTimeLeft((prev) => prev - 1); }, 1000);
     return () => clearInterval(timerId);
   }, [timeLeft, finished, gameData, currentIndex]);
@@ -74,7 +76,7 @@ export default function MultiplayerGameScreen({ route, navigation }: any) {
   const handleAnswer = async (selectedIndex: number) => {
     if (!gameData) return;
     const currentQ = gameData.questions[currentIndex];
-    
+
     // Sprawdzamy, czy czas się skończył (selectedIndex === -1) lub czy odpowiedź jest poprawna
     const isCorrect = selectedIndex !== -1 && selectedIndex === currentQ.correctAnswerIndex;
 
@@ -98,13 +100,13 @@ export default function MultiplayerGameScreen({ route, navigation }: any) {
       <View style={[styles.centerContainer, { backgroundColor: theme.background }]}>
         <Text style={[styles.waitingTitle, { color: theme.text }]}>Oczekiwanie na przeciwnika...</Text>
         <Text style={styles.codeText}>KOD POKOJU: {roomCode}</Text>
-        
+
         {/* Wyświetlamy ustawienia pokoju oczekującym */}
         {gameData && (
           <View style={{ marginTop: 10, alignItems: 'center' }}>
-             <Text style={{ color: theme.subText, fontSize: 16 }}>
-               Pytania: {gameData.questions?.length || 10} | Czas: {gameData.timePerQuestion || 30}s
-             </Text>
+            <Text style={{ color: theme.subText, fontSize: 16 }}>
+              Pytania: {gameData.questions?.length || 10} | Czas: {gameData.timePerQuestion || 30}s
+            </Text>
           </View>
         )}
 
@@ -135,24 +137,34 @@ export default function MultiplayerGameScreen({ route, navigation }: any) {
   if (allFinished) {
     const myScore = isHost ? gameData.hostScore : gameData.guestScore;
     const oppScore = isHost ? gameData.guestScore : gameData.hostScore;
-    
+
     let resultText = "REMIS 🤝";
     let resultColor = "#FF9500";
-    if (myScore > oppScore) { resultText = "WYGRAŁEŚ! 🏆"; resultColor = "#34C759"; } 
+    if (myScore > oppScore) { resultText = "WYGRAŁEŚ! 🏆"; resultColor = "#34C759"; }
     else if (myScore < oppScore) { resultText = "PRZEGRAŁEŚ 😞"; resultColor = "#FF3B30"; }
+
+    // Sprawdź wyzwanie dnia + nagroda monet za wygraną
+    if (myScore > oppScore) {
+      addCoins(COIN_REWARDS.MULTIPLAYER_WIN, 'Wygrana 1vs1');
+      checkDailyChallengeAfterMultiplayerWin().then((result) => {
+        if (result.xpAwarded > 0) {
+          Alert.alert('🎯 Wyzwanie dnia!', `Wygrałeś 1vs1 i zdobyłeś +${result.xpAwarded} XP!`);
+        }
+      });
+    }
 
     return (
       <View style={[styles.centerContainer, { backgroundColor: theme.background }]}>
         <Text style={[styles.resultTitle, { color: resultColor }]}>{resultText}</Text>
         <View style={styles.scoreBoard}>
           <View style={styles.scoreBox}>
-             <Text style={styles.scoreLabel}>TY</Text>
-             <Text style={[styles.bigScore, { color: theme.text }]}>{myScore}</Text>
+            <Text style={styles.scoreLabel}>TY</Text>
+            <Text style={[styles.bigScore, { color: theme.text }]}>{myScore}</Text>
           </View>
           <Text style={styles.vsText}>vs</Text>
           <View style={styles.scoreBox}>
-             <Text style={styles.scoreLabel}>RYWAL</Text>
-             <Text style={[styles.bigScore, { color: theme.text }]}>{oppScore}</Text>
+            <Text style={styles.scoreLabel}>RYWAL</Text>
+            <Text style={[styles.bigScore, { color: theme.text }]}>{oppScore}</Text>
           </View>
         </View>
         <TouchableOpacity style={styles.leaveButton} onPress={() => navigation.popToTop()}>
@@ -164,7 +176,7 @@ export default function MultiplayerGameScreen({ route, navigation }: any) {
 
   const currentQ = gameData.questions[currentIndex];
   // Pobieramy maxTime z bazy lub domyślnie 45s
-  const maxTime = gameData.timePerQuestion || 45; 
+  const maxTime = gameData.timePerQuestion || 45;
 
   return (
     <ScrollView contentContainerStyle={[styles.gameContainer, { backgroundColor: theme.background }]}>
@@ -182,12 +194,12 @@ export default function MultiplayerGameScreen({ route, navigation }: any) {
       <View style={[styles.timerContainer, { backgroundColor: theme.border }]}>
         {/* NOWE: Obliczanie szerokości paska względem dynamicznego maxTime */}
         <View style={[
-            styles.timerBar, 
-            { 
-              width: `${(timeLeft / maxTime) * 100}%`, 
-              backgroundColor: timeLeft < 10 ? '#FF3B30' : theme.primary 
-            }
-          ]} 
+          styles.timerBar,
+          {
+            width: `${(timeLeft / maxTime) * 100}%`,
+            backgroundColor: timeLeft < 10 ? '#FF3B30' : theme.primary
+          }
+        ]}
         />
         <Text style={[styles.timerText, { color: theme.text }]}>⏳ {timeLeft}s</Text>
       </View>
@@ -196,10 +208,10 @@ export default function MultiplayerGameScreen({ route, navigation }: any) {
       <Text style={[styles.progress, { color: theme.subText }]}>
         Pytanie {currentIndex + 1} / {gameData.questions.length}
       </Text>
-      
+
       <View style={styles.questionCard}>
         <Text style={[styles.questionText, { color: theme.text }]}>{currentQ.text}</Text>
-        
+
         {currentQ.media && (
           <View style={{ width: '100%', alignItems: 'center', marginBottom: 20 }}>
             {currentQ.media.type === 'image' && (
@@ -214,12 +226,12 @@ export default function MultiplayerGameScreen({ route, navigation }: any) {
 
       <View style={styles.answersContainer}>
         {currentQ.answers.map((ans: string, idx: number) => (
-          <TouchableOpacity 
-            key={idx} 
-            style={[styles.answerButton, { backgroundColor: theme.card, borderColor: theme.border }]} 
+          <TouchableOpacity
+            key={idx}
+            style={[styles.answerButton, { backgroundColor: theme.card, borderColor: theme.border }]}
             onPress={() => handleAnswer(idx)}
           >
-            <Text style={[styles.answerLetter, { color: theme.primary }]}>{['A','B','C','D'][idx]}.</Text>
+            <Text style={[styles.answerLetter, { color: theme.primary }]}>{['A', 'B', 'C', 'D'][idx]}.</Text>
             <Text style={[styles.answerText, { color: theme.text }]}>{ans}</Text>
           </TouchableOpacity>
         ))}

@@ -1,12 +1,15 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { db } from '../config/firebase';
 import { collection, addDoc, serverTimestamp, writeBatch, doc, increment } from 'firebase/firestore';
-import { saveMistakes } from '../utils/historyManager';
+import { saveMistakes, addToHistory } from '../utils/historyManager';
 import { completeDailyExam } from '../utils/streakManager';
-import { Ionicons } from '@expo/vector-icons'; // Dodane do ikony czasu
+import { awardExamXP, awardStreakXP } from '../utils/xpManager';
+import { checkDailyChallengeAfterExam } from '../utils/dailyChallengeManager';
+import { awardExamCoins, addCoins, COIN_REWARDS } from '../utils/coinManager';
+import { Ionicons } from '@expo/vector-icons';
 
 interface Question {
   id: number;
@@ -25,18 +28,21 @@ type ResultScreenProps = {
       userAnswers: (number | null)[];
       mode: string;
       examId?: string;
-      timeSpent?: number; // 👈 1. DODANE: Odbieranie czasu
+      timeSpent?: number;
     };
   };
   navigation: any;
 };
 
 export default function ResultScreen({ route, navigation }: ResultScreenProps) {
-  // 👇 2. DODANE: timeSpent w destrukcji
-  const { score, total, questions, userAnswers, mode, examId, timeSpent } = route.params; 
+  const { score, total, questions, userAnswers, mode, examId, timeSpent } = route.params;
   const { user } = useAuth();
   const { theme } = useTheme();
   const savedRef = useRef(false);
+  const [xpBreakdown, setXpBreakdown] = useState<string[]>([]);
+  const [totalXPGained, setTotalXPGained] = useState(0);
+  const [coinsGained, setCoinsGained] = useState(0);
+  const [coinBreakdown, setCoinBreakdown] = useState<string[]>([]);
 
   useEffect(() => {
     const saveResult = async () => {
@@ -45,12 +51,14 @@ export default function ResultScreen({ route, navigation }: ResultScreenProps) {
 
       // --- 1. ZALICZANIE SERII (STREAK) ---
       if (total >= 40 && mode !== 'onelife') {
-        console.log('🔥 Próba zaliczenia dziennej serii...');
         try {
-           const streakData = await completeDailyExam();
-           console.log('✅ Seria zaktualizowana!', streakData);
+          const streakData = await completeDailyExam();
+          // XP za streak
+          if (streakData.currentStreak > 0) {
+            await awardStreakXP(streakData.currentStreak);
+          }
         } catch (streakError) {
-           console.error('❌ Błąd aktualizacji serii:', streakError);
+          console.error('Błąd aktualizacji serii:', streakError);
         }
       }
 
@@ -64,6 +72,54 @@ export default function ResultScreen({ route, navigation }: ResultScreenProps) {
 
       if (wrongQuestionIds.length > 0) {
         await saveMistakes(examId || 'general', wrongQuestionIds);
+      }
+
+      const percentage = total > 0 ? Math.round((score / total) * 100) : 0;
+
+      // --- 2.5 ZAPIS LOKALNY DO ASYNC STORAGE (Dla Szybkich Akcji) ---
+      const localHistoryData = {
+        examId: examId || 'unknown',
+        timestamp: Date.now(),
+        mode: mode || 'standard',
+        score: score,
+        totalQuestions: total,
+        passed: percentage >= 50,
+        timeSpentSeconds: timeSpent || 0,
+      };
+
+      await addToHistory(localHistoryData);
+
+      // --- XP ZA EGZAMIN ---
+      if (mode !== 'onelife') {
+        const xpResult = await awardExamXP(score, total, mode);
+        let finalXP = xpResult.totalXPGained;
+        const finalBreakdown = [...xpResult.breakdown];
+
+        // --- SPRAWDŹ WYZWANIE DNIA (jedna wspólna funkcja) ---
+        let challengeCompleted = false;
+        if (examId) {
+          const challengeResult = await checkDailyChallengeAfterExam(
+            examId, percentage, total, timeSpent
+          );
+          if (challengeResult.xpAwarded > 0) {
+            finalXP += challengeResult.xpAwarded;
+            finalBreakdown.push(`🎯 Wyzwanie dnia: +${challengeResult.xpAwarded} XP`);
+          }
+          challengeCompleted = challengeResult.challengeCompleted;
+        }
+
+        setTotalXPGained(finalXP);
+        setXpBreakdown(finalBreakdown);
+
+        // --- MONETY ZA EGZAMIN ---
+        const coinResult = await awardExamCoins(percentage);
+        if (challengeCompleted) {
+          await addCoins(COIN_REWARDS.DAILY_CHALLENGE, 'Wyzwanie dnia');
+          coinResult.coinsGained += COIN_REWARDS.DAILY_CHALLENGE;
+          coinResult.breakdown.push(`🎯 Wyzwanie dnia: +${COIN_REWARDS.DAILY_CHALLENGE} 💎`);
+        }
+        setCoinsGained(coinResult.coinsGained);
+        setCoinBreakdown(coinResult.breakdown);
       }
 
       // --- 3. ZAPIS FIREBASE ---
@@ -84,8 +140,6 @@ export default function ResultScreen({ route, navigation }: ResultScreenProps) {
           };
         }).filter(item => item !== null);
 
-        const percentage = total > 0 ? Math.round((score / total) * 100) : 0;
-
         const historyData = {
           examId: examId || 'unknown',
           userId: user.uid,
@@ -95,19 +149,16 @@ export default function ResultScreen({ route, navigation }: ResultScreenProps) {
           score: score,
           totalQuestions: total,
           passed: percentage >= 50,
-          
-          // 👇 3. DODANE: Zapis czasu do bazy (to naprawi statystyki)
-          timeSpentSeconds: timeSpent || 0, 
-
+          timeSpentSeconds: timeSpent || 0,
           answers: detailedAnswers
         };
 
         await addDoc(collection(db, 'users', user.uid, 'history'), historyData);
-        
-        // Zapis do Trenera Błędów
+
+        // Zapis do Trenera Błędów w Firebase
         const batch = writeBatch(db);
         let mistakeCount = 0;
-        
+
         questions.forEach((q, index) => {
           const userAnswerIndex = userAnswers[index];
           if (q && userAnswerIndex !== q.correctAnswerIndex) {
@@ -117,7 +168,7 @@ export default function ResultScreen({ route, navigation }: ResultScreenProps) {
             const mistakeRef = doc(db, 'users', user.uid, 'mistakes', docId);
             batch.set(mistakeRef, {
               questionId: q.id, examId: safeExamId, text: q.text, answers: q.answers,
-              correctAnswerIndex: q.correctAnswerIndex, media: (q as any).media || null, 
+              correctAnswerIndex: q.correctAnswerIndex, media: (q as any).media || null,
               lastMistakeDate: serverTimestamp(), mistakeCount: increment(1), consecutiveCorrect: 0,
             }, { merge: true });
           }
@@ -125,7 +176,7 @@ export default function ResultScreen({ route, navigation }: ResultScreenProps) {
         if (mistakeCount > 0) await batch.commit();
       } catch (error) { console.error("Błąd zapisu Firebase:", error); }
     };
-    
+
     saveResult();
   }, [user, score, total, mode, examId, questions, userAnswers]);
 
@@ -156,7 +207,6 @@ export default function ResultScreen({ route, navigation }: ResultScreenProps) {
           <Text style={[styles.scoreText, { color: theme.text }]}>{score} / {total}</Text>
           <Text style={styles.percentText}>{percentage}%</Text>
 
-          {/* 👇 4. DODANE: Wyświetlanie czasu użytkownikowi */}
           {timeSpent !== undefined && (
             <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10, opacity: 0.7 }}>
               <Ionicons name="time-outline" size={18} color={theme.text} />
@@ -167,36 +217,56 @@ export default function ResultScreen({ route, navigation }: ResultScreenProps) {
           )}
 
         </View>
-        
+
         <View style={[styles.infoBox, { backgroundColor: theme.card, borderColor: theme.primary }]}>
-            <Text style={[styles.infoText, { color: theme.primary }]}>
-                {isPassed ? "Świetna robota! " : "Nie martw się! "}
-                Błędne odpowiedzi trafiły do Trenera.
-            </Text>
+          <Text style={[styles.infoText, { color: theme.primary }]}>
+            {isPassed ? "Świetna robota! " : "Nie martw się! "}
+            Błędne odpowiedzi trafiły do Trenera.
+          </Text>
         </View>
 
+        {/* XP GAINED */}
+        {totalXPGained > 0 && (
+          <View style={[styles.xpBox, { backgroundColor: theme.card }]}>
+            <Text style={[styles.xpTitle, { color: '#FFD700' }]}>🏅 +{totalXPGained} XP</Text>
+            {xpBreakdown.map((line, i) => (
+              <Text key={i} style={[styles.xpLine, { color: theme.subText }]}>{line}</Text>
+            ))}
+          </View>
+        )}
+
+        {/* COINS GAINED */}
+        {coinsGained > 0 && (
+          <View style={[styles.xpBox, { backgroundColor: theme.card }]}>
+            <Text style={[styles.xpTitle, { color: '#7F00FF' }]}>💎 +{coinsGained} monet</Text>
+            {coinBreakdown.map((line, i) => (
+              <Text key={i} style={[styles.xpLine, { color: theme.subText }]}>{line}</Text>
+            ))}
+          </View>
+        )}
+
         <Text style={[styles.sectionHeader, { color: theme.text }]}>Szczegółowa analiza:</Text>
-        
+
         {questions.map((q, index) => {
           const userAnswerIndex = userAnswers[index];
-          if (!q) return null; 
+          if (!q) return null;
           const isCorrect = userAnswerIndex === q.correctAnswerIndex;
           const isSkipped = userAnswerIndex === null;
 
           return (
             <View key={index} style={[
-              styles.questionBox, 
+              styles.questionBox,
               { backgroundColor: theme.card, borderColor: isCorrect ? '#4CAF50' : theme.danger }
             ]}>
               <Text style={[styles.questionText, { color: theme.text }]}>{index + 1}. {q.text}</Text>
-              
+
               <View style={styles.answerRow}>
                 <Text style={styles.label}>Twoja odp:</Text>
                 <Text style={[styles.answerText, isCorrect ? styles.textGreen : styles.textRed, isSkipped && styles.textGray]}>
                   {isSkipped ? "(Brak odpowiedzi)" : `${String.fromCharCode(65 + userAnswerIndex!)}. ${q.answers[userAnswerIndex!]}`}
                 </Text>
               </View>
-              
+
               {!isCorrect && q.correctAnswerIndex !== null && (
                 <View style={styles.answerRow}>
                   <Text style={styles.label}>Poprawna:</Text>
@@ -231,17 +301,17 @@ const styles = StyleSheet.create({
   subText: { color: '#666', fontSize: 18, marginTop: 20 },
   retryButton: { backgroundColor: '#FF3B30', paddingVertical: 18, paddingHorizontal: 40, borderRadius: 30, width: '100%', alignItems: 'center' },
   retryButtonText: { color: '#fff', fontSize: 18, fontWeight: 'bold', letterSpacing: 1 },
-  
+
   card: { padding: 20, borderRadius: 15, alignItems: 'center', marginBottom: 25, elevation: 4 },
   cardSuccess: { borderTopWidth: 5, borderTopColor: '#4CAF50' },
   cardFail: { borderTopWidth: 5, borderTopColor: '#F44336' },
   resultTitle: { fontSize: 24, fontWeight: 'bold', marginBottom: 5 },
   scoreText: { fontSize: 40, fontWeight: 'bold' },
   percentText: { fontSize: 18, color: '#666' },
-  
+
   sectionHeader: { fontSize: 18, fontWeight: 'bold', marginBottom: 15, marginLeft: 5 },
   questionBox: { padding: 15, borderRadius: 10, marginBottom: 15, borderWidth: 1 },
-  
+
   questionText: { fontSize: 16, fontWeight: '600', marginBottom: 10 },
   answerRow: { marginTop: 5 },
   label: { fontSize: 12, color: '#777', fontWeight: 'bold', textTransform: 'uppercase' },
@@ -249,11 +319,14 @@ const styles = StyleSheet.create({
   textGreen: { color: '#4CAF50', fontWeight: 'bold' },
   textRed: { color: '#F44336', textDecorationLine: 'line-through' },
   textGray: { color: '#777', fontStyle: 'italic' },
-  
+
   footer: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 20, borderTopWidth: 1 },
   button: { paddingVertical: 15, borderRadius: 30, alignItems: 'center' },
   buttonText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
-  
+
   infoBox: { padding: 10, borderRadius: 8, marginBottom: 20, borderWidth: 1 },
-  infoText: { textAlign: 'center', fontSize: 14 }
+  infoText: { textAlign: 'center', fontSize: 14 },
+  xpBox: { padding: 16, borderRadius: 12, marginBottom: 20, alignItems: 'center' },
+  xpTitle: { fontSize: 22, fontWeight: 'bold', marginBottom: 8 },
+  xpLine: { fontSize: 13, marginBottom: 2 },
 });

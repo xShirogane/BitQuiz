@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  View, Text, StyleSheet, TouchableOpacity, ScrollView, 
-  ActivityIndicator, Image, TextInput, Alert, Keyboard 
+import {
+  View, Text, StyleSheet, TouchableOpacity, ScrollView,
+  ActivityIndicator, Image, TextInput, Alert, Keyboard
 } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useTheme } from '../context/ThemeContext'; // <--- 1. Import Motywu
@@ -16,11 +16,11 @@ const QuestionVideo = ({ uri }: { uri: string }) => {
 
   return (
     <View style={styles.videoContainer}>
-      <VideoView 
-        style={styles.videoView} 
-        player={player} 
+      <VideoView
+        style={styles.videoView}
+        player={player}
         contentFit="contain"
-        nativeControls={true} 
+        nativeControls={true}
       />
     </View>
   );
@@ -55,21 +55,21 @@ export default function TrainingScreen({ route, navigation }: any) {
   };
 
   const handleAnswer = (index: number) => {
-    if (selectedAnswerIndex !== null) return; 
+    if (selectedAnswerIndex !== null) return;
     setSelectedAnswerIndex(index);
   };
 
   const goToNext = () => {
     if (currentIndex < questions.length - 1) {
       setCurrentIndex(prev => prev + 1);
-      setSelectedAnswerIndex(null); 
+      setSelectedAnswerIndex(null);
     }
   };
 
   const goToPrev = () => {
     if (currentIndex > 0) {
       setCurrentIndex(prev => prev - 1);
-      setSelectedAnswerIndex(null); 
+      setSelectedAnswerIndex(null);
     }
   };
 
@@ -85,8 +85,8 @@ export default function TrainingScreen({ route, navigation }: any) {
     }
     setCurrentIndex(questionNumber - 1);
     setSelectedAnswerIndex(null);
-    setJumpText(''); 
-    Keyboard.dismiss(); 
+    setJumpText('');
+    Keyboard.dismiss();
   };
 
   if (loading) {
@@ -103,15 +103,15 @@ export default function TrainingScreen({ route, navigation }: any) {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      
+
       {/* GÓRNY PASEK */}
       <View style={[styles.topBar, { backgroundColor: theme.card }]}>
         <Text style={[styles.counterText, { color: theme.subText }]}>
           Pytanie {currentIndex + 1} / {questions.length}
         </Text>
-        
+
         <View style={styles.jumpContainer}>
-          <TextInput 
+          <TextInput
             style={[styles.jumpInput, { backgroundColor: theme.background, color: theme.text, borderColor: theme.border }]}
             placeholder="#"
             placeholderTextColor={theme.subText}
@@ -147,10 +147,10 @@ export default function TrainingScreen({ route, navigation }: any) {
         {/* ODPOWIEDZI */}
         <View style={styles.answersContainer}>
           {currentQ.answers.map((ans: string, idx: number) => {
-            
+
             // LOGIKA KOLORÓW
             // Domyślne (nie wybrano jeszcze nic)
-            let backgroundColor = theme.card; 
+            let backgroundColor = theme.card;
             let borderColor = theme.border;
             let textColor = theme.text;
             let letterColor = theme.primary;
@@ -158,7 +158,7 @@ export default function TrainingScreen({ route, navigation }: any) {
             if (isAnswered) {
               if (idx === currentQ.correctAnswerIndex) {
                 // Poprawna - Zielony (zawsze jasny/wyraźny)
-                backgroundColor = '#D4EDDA'; 
+                backgroundColor = '#D4EDDA';
                 borderColor = '#28A745';
                 textColor = '#155724';
                 letterColor = '#155724';
@@ -170,20 +170,20 @@ export default function TrainingScreen({ route, navigation }: any) {
                 letterColor = '#721C24';
               }
             } else if (selectedAnswerIndex === idx) {
-                // To się rzadko zdarzy bo od razu pokazujemy wynik, ale dla spójności:
-                backgroundColor = theme.primary;
-                textColor = '#fff';
+              // To się rzadko zdarzy bo od razu pokazujemy wynik, ale dla spójności:
+              backgroundColor = theme.primary;
+              textColor = '#fff';
             }
 
             return (
-              <TouchableOpacity 
-                key={idx} 
-                style={[styles.answerButton, { backgroundColor, borderColor }]} 
+              <TouchableOpacity
+                key={idx}
+                style={[styles.answerButton, { backgroundColor, borderColor }]}
                 onPress={() => handleAnswer(idx)}
                 activeOpacity={0.7}
               >
                 <Text style={[styles.answerLetter, { color: letterColor }]}>
-                  {['A','B','C','D'][idx]}.
+                  {['A', 'B', 'C', 'D'][idx]}.
                 </Text>
                 <Text style={[styles.answerText, { color: textColor }]}>{ans}</Text>
               </TouchableOpacity>
@@ -194,16 +194,16 @@ export default function TrainingScreen({ route, navigation }: any) {
 
       {/* DOLNY PASEK NAWIGACJI */}
       <View style={[styles.bottomNav, { backgroundColor: theme.card, borderTopColor: theme.border }]}>
-        <TouchableOpacity 
-          style={[styles.navButton, { backgroundColor: theme.primary }, currentIndex === 0 && styles.disabledButton]} 
+        <TouchableOpacity
+          style={[styles.navButton, { backgroundColor: theme.primary }, currentIndex === 0 && styles.disabledButton]}
           onPress={goToPrev}
           disabled={currentIndex === 0}
         >
           <Text style={styles.navButtonText}>← Poprzednie</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity 
-          style={[styles.navButton, { backgroundColor: theme.primary }, currentIndex === questions.length - 1 && styles.disabledButton]} 
+        <TouchableOpacity
+          style={[styles.navButton, { backgroundColor: theme.primary }, currentIndex === questions.length - 1 && styles.disabledButton]}
           onPress={goToNext}
           disabled={currentIndex === questions.length - 1}
         >
@@ -224,8 +224,8 @@ const styles = StyleSheet.create({
   },
   counterText: { fontSize: 16, fontWeight: 'bold' },
   jumpContainer: { flexDirection: 'row', alignItems: 'center' },
-  jumpInput: { 
-    width: 60, height: 36, borderRadius: 8, 
+  jumpInput: {
+    width: 60, height: 36, borderRadius: 8,
     textAlign: 'center', marginRight: 8, borderWidth: 1
   },
   jumpButton: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
@@ -244,7 +244,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', padding: 15, borderTopWidth: 1,
     position: 'absolute', bottom: 0, left: 0, right: 0, justifyContent: 'space-between'
   },
-  navButton: { 
+  navButton: {
     paddingVertical: 12, paddingHorizontal: 20, borderRadius: 25, minWidth: 120, alignItems: 'center'
   },
   disabledButton: { backgroundColor: '#CCC' },

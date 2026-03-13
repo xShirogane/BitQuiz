@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, ActivityIndicator } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../context/AuthContext';
-import { useTheme } from '../context/ThemeContext'; // <--- Theme
+import { useTheme } from '../context/ThemeContext';
 import { cacheImages } from '../utils/offlineManager';
+import { getItemQuantity, useItem } from '../utils/shopManager';
 import * as FileSystem from 'expo-file-system/legacy'; // <--- LEGACY WAŻNE
 import { useVideoPlayer, VideoView } from 'expo-video';
 
@@ -39,10 +40,12 @@ export default function OneLifeScreen({ route, navigation }: any) {
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [score, setScore] = useState(0);
+  const [extraLives, setExtraLives] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchQuestions();
+    getItemQuantity('extra_life').then(setExtraLives);
   }, []);
 
   const fetchQuestions = async () => {
@@ -52,7 +55,7 @@ export default function OneLifeScreen({ route, navigation }: any) {
       if (!response.ok) throw new Error('Błąd sieci');
       const rawQuestions: Question[] = await response.json();
       const questionsWithImages = await cacheImages(rawQuestions);
-      try { await AsyncStorage.setItem(cacheKey, JSON.stringify(questionsWithImages)); } catch (e) {}
+      try { await AsyncStorage.setItem(cacheKey, JSON.stringify(questionsWithImages)); } catch (e) { }
       processQuestions(questionsWithImages);
     } catch (err) {
       if (!userProfile?.isPro) {
@@ -73,20 +76,31 @@ export default function OneLifeScreen({ route, navigation }: any) {
     setLoading(false);
   };
 
-  const handleAnswer = (index: number) => {
+  const handleAnswer = async (index: number) => {
     const currentQ = questions[currentIndex];
     if (currentQ.correctAnswerIndex === index) {
       setScore(score + 1);
       if (currentIndex < questions.length - 1) setCurrentIndex(currentIndex + 1);
       else finishGame();
     } else {
+      // Błędna odpowiedź — spróbuj zużyć dodatkowe życie
+      if (extraLives > 0) {
+        const used = await useItem('extra_life');
+        if (used) {
+          setExtraLives(prev => prev - 1);
+          // Kontynuuj grę zamiast kończyć
+          if (currentIndex < questions.length - 1) setCurrentIndex(currentIndex + 1);
+          else finishGame();
+          return;
+        }
+      }
       finishGame();
     }
   };
 
   const finishGame = () => {
     navigation.replace('Result', { // replace żeby nie cofać
-      score, total: 0, questions: [], userAnswers: [], mode: 'onelife', examId 
+      score, total: 0, questions: [], userAnswers: [], mode: 'onelife', examId
     });
   };
 
@@ -106,20 +120,20 @@ export default function OneLifeScreen({ route, navigation }: any) {
         <View style={styles.scoreBadge}>
           <Text style={styles.scoreText}>SERIA: {score}</Text>
         </View>
-        <Text style={[styles.livesText, { color: theme.text }]}>❤️ 1 ŻYCIE</Text>
+        <Text style={[styles.livesText, { color: theme.text }]}>❤️ {1 + extraLives} {extraLives > 0 ? 'ŻYCIA' : 'ŻYCIE'}</Text>
       </View>
 
       <View style={styles.card}>
         <Text style={[styles.questionText, { color: theme.text }]}>{currentQuestion.text}</Text>
-        
+
         {currentQuestion.media && (
           <View style={{ marginBottom: 20, width: '100%', alignItems: 'center' }}>
             {currentQuestion.media.type === 'image' && (
               <Image
-                source={{ 
-                  uri: currentQuestion.media.localFileName 
+                source={{
+                  uri: currentQuestion.media.localFileName
                     ? `${FileSystem.documentDirectory}${currentQuestion.media.localFileName}`
-                    : GITHUB_IMAGE_BASE_URL + currentQuestion.media.uri 
+                    : GITHUB_IMAGE_BASE_URL + currentQuestion.media.uri
                 }}
                 style={styles.image}
                 resizeMode="contain"
@@ -134,12 +148,12 @@ export default function OneLifeScreen({ route, navigation }: any) {
 
       <View style={styles.answersContainer}>
         {currentQuestion.answers.map((ans, idx) => (
-          <TouchableOpacity 
-            key={idx} 
-            style={[styles.answerButton, { backgroundColor: theme.card, borderColor: theme.border }]} 
+          <TouchableOpacity
+            key={idx}
+            style={[styles.answerButton, { backgroundColor: theme.card, borderColor: theme.border }]}
             onPress={() => handleAnswer(idx)}
           >
-            <Text style={styles.answerLetter}>{['A','B','C','D'][idx]}.</Text>
+            <Text style={styles.answerLetter}>{['A', 'B', 'C', 'D'][idx]}.</Text>
             <Text style={[styles.answerText, { color: theme.text }]}>{ans}</Text>
           </TouchableOpacity>
         ))}

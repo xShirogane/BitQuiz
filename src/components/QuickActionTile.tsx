@@ -11,7 +11,7 @@ interface QuickActionTileProps {
   onPress: () => void;
 }
 
-export const QuickActionTile: React.FC<QuickActionTileProps> = ({ title, description, iconName, color, onPress }) => {
+export const QuickActionTile: React.FC<QuickActionTileProps> = React.memo(({ title, description, iconName, color, onPress }) => {
   const { theme } = useTheme();
 
   return (
@@ -27,23 +27,23 @@ export const QuickActionTile: React.FC<QuickActionTileProps> = ({ title, descrip
       ]}
     >
       {/* IKONA */}
-      <View style={[styles.iconBox, { backgroundColor: color + '20' }]}> 
+      <View style={[styles.iconBox, { backgroundColor: color + '20' }]}>
         <Ionicons name={iconName} size={22} color={color} />
       </View>
 
       {/* TEKSTY */}
       <View style={styles.textContainer}>
-        <Text 
-          style={[styles.title, { color: theme.text }]} 
-          numberOfLines={1} 
+        <Text
+          style={[styles.title, { color: theme.text }]}
+          numberOfLines={1}
           adjustsFontSizeToFit={true} // TO JEST KLUCZOWE: Zmniejsza tekst zamiast ucinać
           minimumFontScale={0.85}     // ...ale nie bardziej niż do 85%
         >
           {title}
         </Text>
         {description && (
-          <Text 
-            style={[styles.description, { color: theme.subText }]} 
+          <Text
+            style={[styles.description, { color: theme.subText }]}
             numberOfLines={1}
           >
             {description}
@@ -57,11 +57,11 @@ export const QuickActionTile: React.FC<QuickActionTileProps> = ({ title, descrip
       </View>
     </Pressable>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1, 
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     padding: 10, // Lekko mniejszy padding, żeby zyskać miejsce na tekst
@@ -83,14 +83,14 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   textContainer: {
-    flex: 1, 
+    flex: 1,
     justifyContent: 'center',
     marginRight: 2,
   },
   title: {
     fontSize: 13,
     fontWeight: '700',
-    marginBottom: 1, 
+    marginBottom: 1,
   },
   description: {
     fontSize: 10,

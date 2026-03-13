@@ -10,6 +10,7 @@ export interface UserProfile {
   isPro: boolean;
   createdAt?: any;
   favoriteSchool?: string;
+  favoriteQualifications?: string[];
   photoURL?: string;
 }
 
@@ -20,9 +21,9 @@ interface AuthContextProps {
   isAdmin: boolean;
 }
 
-const AuthContext = createContext<AuthContextProps>({ 
-  user: null, 
-  userProfile: null, 
+const AuthContext = createContext<AuthContextProps>({
+  user: null,
+  userProfile: null,
   loading: true,
   isAdmin: false
 });
@@ -42,12 +43,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (currentUser) {
         setLoading(true);
         const userDocRef = doc(db, 'users', currentUser.uid);
-        
+
         // 2. Nasłuchuj zmian w profilu użytkownika
         const unsubscribeFirestore = onSnapshot(userDocRef, async (docSnap) => {
           if (docSnap.exists()) {
             const data = docSnap.data() as UserProfile;
-            
+
             // --- MECHANIZM AUTO-SYNCHRONIZACJI ---
             // Sprawdzamy, czy email w bazie różni się od tego w Authentication
             if (currentUser.email && data.email !== currentUser.email) {
@@ -92,11 +93,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }
 
   return (
-    <AuthContext.Provider value={{ 
-      user, 
-      userProfile, 
-      loading, 
-      isAdmin: false 
+    <AuthContext.Provider value={{
+      user,
+      userProfile,
+      loading,
+      isAdmin: false
     }}>
       {children}
     </AuthContext.Provider>
